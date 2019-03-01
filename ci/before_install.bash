@@ -14,16 +14,6 @@ sudo apt-get update
 # needed for aget-rs
 sudo apt-get install -y build-essential openssl libssl-dev pkg-config
 
-# needed for musl targets
-echo "-: sudo apt-get install -y musl-tools"
-sudo apt-get install -y musl-tools
-
 # needed to build deb packages
 echo "-: sudo apt-get install -y fakeroot"
 sudo apt-get install -y fakeroot
-
-# needed for i686 linux gnu target
-if [[ $TARGET == i686-unknown-linux-gnu ]]; then
-    echo "-: sudo apt-get install -y gcc-multilib"
-    sudo apt-get install -y gcc-multilib
-fi

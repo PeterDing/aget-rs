@@ -9,16 +9,6 @@ matrix:
       rust: stable
       env: TARGET=x86_64-unknown-linux-gnu
 
-    - os: linux
-      rust: stable
-      env:
-        - TARGET=x86_64-unknown-linux-musl
-        - CC_x86_64_unknown_linux_musl=/usr/bin/musl-gcc
-
-    - os: linux
-      rust: stable
-      env: TARGET=i686-unknown-linux-gnu
-
     - os: osx
       rust: stable
       env: TARGET=x86_64-apple-darwin
