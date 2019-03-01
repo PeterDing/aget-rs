@@ -1,0 +1,35 @@
+[package]
+name = "aget-rs"
+version = "0.1.0"
+authors = ["PeterDing <dfhayst@gmail.com>"]
+homepage = "https://github.com/PeterDing/aget-rs"
+description="Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
+license = "MIT/Apache-2.0"
+readme = "README.md"
+categories = ["command-line-utilities"]
+keywords = [
+    "download",
+    "network",
+    "asynchronous",
+    "tool",
+]
+edition = "2018"
+
+[[bin]]
+name = "ag"
+path = "src/main.rs"
+
+[dependencies]
+term_size = "0.3"
+ansi_term = "0.11"
+bytes = "0.4"
+tokio = "0.1"
+failure = "0.1"
+futures = "0.1"
+actix = "0.7"
+actix-web = { version = "0.7", features = ["ssl"] }
+
+[dependencies.clap]
+version = "2.32"
+default-features = false
+features = [ "suggestions", "color" ]
