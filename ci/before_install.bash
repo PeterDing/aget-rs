@@ -11,6 +11,9 @@ fi
 echo "-: sudo apt-get update"
 sudo apt-get update
 
+# needed for aget-rs
+sudo apt-get install -y build-essential openssl libssl-dev pkg-config
+
 # needed for musl targets
 echo "-: sudo apt-get install -y musl-tools"
 sudo apt-get install -y musl-tools
