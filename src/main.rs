@@ -1,4 +1,3 @@
-#![feature(duration_float)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
