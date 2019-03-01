@@ -7,7 +7,7 @@ Especially, the concurrent amount can be any positive number as your wish.
 
 ## Installation
 
-You can download the last release from https://github.com/PeterDing/aget-rs/release
+You can download the last release from https://github.com/PeterDing/aget-rs/releases
 
 ## Usage
 
