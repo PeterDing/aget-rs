@@ -1,14 +1,5 @@
 language: rust
 
-sudo: required
-
-# Caching
-cache:
-  directories:
-    - /home/travis/.cargo
-before_cache:
-  - rm -rf /home/travis/.cargo/registry
-
 matrix:
   include:
     # Stable channel.
@@ -46,6 +37,8 @@ env:
     # Used on the deployment script
     - BIN_NAME=ag
     - PROJECT_NAME=aget-rs
+
+sudo: required
 
 before_install:
   - ci/before_install.bash
@@ -90,3 +83,10 @@ deploy:
 notifications:
   email:
     on_success: never
+
+# Caching
+cache:
+  directories:
+    - /home/travis/.cargo
+before_cache:
+  - rm -rf /home/travis/.cargo/registry

@@ -1,8 +1,14 @@
 build() {
+    echo "-: build release"
+
     cargo build --target "$TARGET" --release --verbose
+
+    echo "-: build release, done"
 }
 
 pack() {
+    echo "-: pack binary"
+
     local tempdir
     local out_dir
     local package_name
@@ -31,9 +37,13 @@ pack() {
     tar czf "$out_dir/$package_name.tar.gz" "$package_name"/*
     popd
     rm -r "$tempdir"
+
+    echo "-: pack binary, done"
 }
 
 make_deb() {
+    echo "-: make deb"
+
     local tempdir
     local architecture
     local version
@@ -90,6 +100,8 @@ Description: Aget-rs - Fast Asynchronous Downloader.
 EOF
 
     fakeroot dpkg-deb --build "$tempdir" "${dpkgname}_${version}_${architecture}.deb"
+
+    echo "-: make deb, done"
 }
 
 
@@ -101,4 +113,5 @@ main() {
     fi
 }
 
+echo "-: before_deploy.bash"
 main
