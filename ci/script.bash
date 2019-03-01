@@ -7,7 +7,7 @@ cargo build --target "$TARGET" --verbose
 
 cargo test --target "$TARGET" --verbose
 
-cargo run --target "$TARGET" -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.10/release/ubuntu-base-18.10-base-amd64.tar.gz
+RUST_BACKTRACE=1 cargo run --target "$TARGET" -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.10/release/ubuntu-base-18.10-base-amd64.tar.gz
 
 if [ "$TRAVIS_OS_NAME" = "linux" ]
 then
