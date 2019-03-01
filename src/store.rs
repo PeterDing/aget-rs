@@ -51,11 +51,18 @@ impl TaskInfo {
     }
 
     pub fn rate_and_eta(&self) -> (f64, u64) {
-        let interval = self.tick_interval.elapsed().as_float_secs();
-        let rate = self.interval_length as f64 / interval;
+        let interval = self.tick_interval.elapsed().as_secs();
+        let rate = self.interval_length as f64 / interval as f64;
         let remains = self.remains();
-        let eta = if remains > 0 {
-            (remains as f64 / rate) as u64
+        // rate > 1.0 for overflow
+        let eta = if remains > 0 && rate > 1.0 {
+            let eta = (remains as f64 / rate) as u64;
+            // eta is large than 99 days, return 0
+            if eta > 99 * 24 * 60 * 60 {
+                0
+            } else {
+                eta
+            }
         } else {
             0
         };
