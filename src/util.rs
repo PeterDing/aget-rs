@@ -21,8 +21,16 @@ impl FindFilename for Uri {
     }
 }
 
+const MIN_TERMINAL_WIDTH: u64 = 60;
+
 pub fn terminal_width() -> u64 {
-    dimensions().unwrap().0 as u64
+    if let Some((width, _)) = dimensions() {
+        width as u64
+    } else {
+        // for envrionment in which atty is not available,
+        // example, at ci of osx
+        MIN_TERMINAL_WIDTH
+    }
 }
 
 const SIZES: [&'static str; 4] = ["B", "K", "M", "G"];
