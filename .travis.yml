@@ -41,14 +41,14 @@ env:
 sudo: required
 
 before_install:
-  - ci/before_install.bash
+  - bash ci/before_install.bash
 
 install:
   # prevent target re-add error from rustup
   - if [[ $TRAVIS_OS_NAME = linux && $HOST != $TARGET ]]; then rustup target add $TARGET; fi
 
 script:
-  - ci/script.bash
+  - bash ci/script.bash
 
 before_deploy:
   - bash ci/before_deploy.bash

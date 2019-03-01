@@ -2,7 +2,9 @@
 
 set -ex
 
-if [ "$TRAVIS_OS_NAME" != linux ]; then
+echo "-: before_install.bash"
+
+if [[ $TRAVIS_OS_NAME != linux ]]; then
     exit 0
 fi
 
