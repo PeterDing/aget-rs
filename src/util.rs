@@ -111,3 +111,9 @@ impl TimeOfFmt for u64 {
         return format!("{:.0}d", num);
     }
 }
+
+macro_rules! print_err {
+    ( $ctx:expr, $err:expr ) => {
+        eprintln!("[{}:{}] {}: {}", file!(), line!(), $ctx, $err);
+    }
+}

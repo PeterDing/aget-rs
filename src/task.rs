@@ -73,8 +73,9 @@ impl Future for RequestTask {
                 if let Some(range) = self.pop_range() {
                     let request = self.options.build(self.connector.clone());
 
-                    if let Err(e) = request {
-                        return Err(e);
+                    if let Err(err) = request {
+                        print_err!("build request fails", err);
+                        return Err(err);
                     }
 
                     let mut request = request.unwrap();
@@ -110,7 +111,10 @@ impl Future for RequestTask {
                                         // the sended RangePart is a close interval as header
                                         // `Range`
                                         .send((RangePart::new(start, end - 1), chunk))
-                                        .map_err(|_| NetError::ActixError)
+                                        .map_err(|err| {
+                                            print_err!("sender fails", err);
+                                            NetError::ActixError
+                                        })
                                     // Ok::<_, NetError>(())
                                 })
                         })

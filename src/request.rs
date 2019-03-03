@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use clap::crate_version;
 
 use futures::{try_ready, Async, Future, Poll};
@@ -18,7 +20,6 @@ fn parse_header(raw: &str) -> Result<(&str, &str), AgetError> {
     if let Some(index) = raw.find(":") {
         return Ok((&raw[..index], &raw[index + 1..]));
     }
-    // Err(format!("header: '{}' is wrong.", raw.to_string()).into())
     Err(AgetError::HeaderParseError(raw.to_string()))
 }
 
@@ -67,7 +68,9 @@ impl AgetRequestOptions {
         builder
             .method(self.method.clone())
             .uri(self.uri.clone())
+            .timeout(Duration::from_secs(10))
             .no_default_headers();
+
         for (ref key, ref val) in &self.headers {
             builder.header(key.as_str(), val.as_str());
         }
@@ -83,6 +86,9 @@ impl AgetRequestOptions {
         // set user-agent if none
         let aget_ua = format!("aget/{}", crate_version!());
         builder.set_header_if_none("User-Agent", aget_ua);
+
+        // set accept if none
+        builder.set_header_if_none("Accept", "*/*");
 
         if let Some(ref body) = self.body {
             builder.body(body.clone())?;
@@ -134,14 +140,17 @@ impl Future for Redirect {
             } else {
                 let request = self.options.build(self.connector.clone());
 
-                if let Err(e) = request {
-                    return Err(e);
+                if let Err(err) = request {
+                    return Err(err);
                 }
 
                 let request = request
                     .unwrap()
                     .send()
-                    .map_err(|_| NetError::ActixError)
+                    .map_err(|err| {
+                        print_err!("redirect error", err);
+                        NetError::ActixError
+                    })
                     .and_then(|resp: ClientResponse| {
                         if let Some(h) = resp.headers().get(header::LOCATION) {
                             if let Ok(s) = h.to_str() {
@@ -191,8 +200,8 @@ impl Future for ContentLength {
             } else {
                 let request = self.options.build(self.connector.clone());
 
-                if let Err(e) = request {
-                    return Err(e);
+                if let Err(err) = request {
+                    return Err(err);
                 }
 
                 let mut request = request.unwrap();
@@ -200,8 +209,13 @@ impl Future for ContentLength {
                     .headers_mut()
                     .insert(header::RANGE, "bytes=0-1".parse().unwrap());
 
-                let request = request.send().map_err(|_| NetError::ActixError).and_then(
-                    |resp: ClientResponse| {
+                let request = request
+                    .send()
+                    .map_err(|err| {
+                        print_err!("content length request error", err);
+                        NetError::ActixError
+                    })
+                    .and_then(|resp: ClientResponse| {
                         if let Some(h) = resp.headers().get(header::CONTENT_RANGE) {
                             if let Ok(s) = h.to_str() {
                                 if let Some(index) = s.find("/") {
@@ -210,10 +224,14 @@ impl Future for ContentLength {
                                     }
                                 }
                             }
+                        } else {
+                            print_err!(
+                                "server doesn't support partial requests",
+                                "can't use range requests"
+                            );
                         }
                         Ok(None)
-                    },
-                );
+                    });
 
                 self.request = Some(Box::new(request));
             }

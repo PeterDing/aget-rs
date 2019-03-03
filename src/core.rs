@@ -167,7 +167,7 @@ impl Future for CoreProcess {
                                 sender.clone(),
                             )
                             .map_err(|err| {
-                                eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                print_err!("RequestTask fails", err);
                                 ()
                             });
                             spawn(task)
@@ -272,13 +272,13 @@ impl Future for StreamHander {
                                 .file
                                 .write(&buf[..], Some(SeekFrom::Start(range_part.start)))
                             {
-                                eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                print_err!("write chunk to file fails", err);
                                 return Err(());
                             }
 
                             // write range_part
                             if let Err(err) = self.aget_file.write_interval(range_part) {
-                                eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                print_err!("write interval to aget file fails", err);
                                 return Err(());
                             }
 
@@ -287,17 +287,17 @@ impl Future for StreamHander {
                         }
                         Some(Item::Tick) => {
                             if let Err(err) = self.print_process() {
-                                eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                print_err!("print process fails", err);
                                 return Err(());
                             }
                             self.task_info.clean_interval();
                             if self.task_info.remains() == 0 {
                                 if let Err(err) = self.print_process() {
-                                    eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                    print_err!("print process fails", err);
                                     return Err(());
                                 }
                                 if let Err(err) = self.teardown() {
-                                    eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                    print_err!("teardown stream handler fails", err);
                                     return Err(());
                                 }
                                 return Ok(Async::Ready(()));
@@ -310,7 +310,7 @@ impl Future for StreamHander {
                     }
                 }
                 Err(err) => {
-                    eprintln!("[{}:{}] {}", file!(), line!(), err);
+                    print_err!("stream error", err);
                     return Err(());
                 }
             }

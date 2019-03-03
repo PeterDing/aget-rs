@@ -7,6 +7,9 @@ use futures::Future;
 
 use actix::{spawn, System};
 
+#[macro_use]
+mod util;
+
 mod app;
 mod chunk;
 mod clap_app;
@@ -17,7 +20,6 @@ mod printer;
 mod request;
 mod store;
 mod task;
-mod util;
 
 use crate::app::App;
 use crate::core::CoreProcess;
@@ -34,7 +36,7 @@ fn main() {
                     spawn(
                         core_fut
                             .map_err(|err| {
-                                eprintln!("[{}:{}] {}", file!(), line!(), err);
+                                print_err!("core_fut fails", err);
                                 System::current().stop();
                                 ()
                             })
@@ -42,14 +44,14 @@ fn main() {
                     );
                 }
                 Err(err) => {
-                    eprintln!("[{}:{}] {}", file!(), line!(), err);
+                    print_err!("core_fut error", err);
                     exit(1);
                 }
             }
             sys.run();
         }
         Err(err) => {
-            eprintln!("[{}:{}] {}", file!(), line!(), err);
+            print_err!("app config fails", err);
             exit(1);
         }
     }
