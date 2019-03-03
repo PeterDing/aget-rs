@@ -62,7 +62,10 @@ impl AgetRequestOptions {
         })
     }
 
-    pub fn build(&self, connector: Addr<ClientConnector>) -> Result<ClientRequest, NetError> {
+    pub fn build(
+        &self,
+        connector: Addr<ClientConnector>,
+    ) -> Result<ClientRequest, NetError> {
         let mut builder = ClientRequest::build();
         builder.with_connector(connector);
         builder
@@ -114,7 +117,10 @@ pub struct Redirect {
 }
 
 impl Redirect {
-    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> Redirect {
+    pub fn new(
+        options: AgetRequestOptions,
+        connector: Addr<ClientConnector>,
+    ) -> Redirect {
         Redirect {
             options,
             connector,
@@ -173,7 +179,10 @@ pub struct ContentLength {
 }
 
 impl ContentLength {
-    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> ContentLength {
+    pub fn new(
+        options: AgetRequestOptions,
+        connector: Addr<ClientConnector>,
+    ) -> ContentLength {
         ContentLength {
             options,
             connector,

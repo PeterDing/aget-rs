@@ -49,7 +49,8 @@ impl CoreProcess {
             .map(AsRef::as_ref)
             .collect::<Vec<&str>>();
         let data = config.data.as_ref().map(AsRef::as_ref);
-        let options = AgetRequestOptions::new(&config.uri, &config.method, headers, data)?;
+        let options =
+            AgetRequestOptions::new(&config.uri, &config.method, headers, data)?;
 
         Ok(CoreProcess {
             config,
@@ -69,7 +70,8 @@ impl CoreProcess {
     }
 
     fn make_content_length(&mut self) -> &mut Self {
-        let content_length = ContentLength::new(self.options.clone(), self.connector.clone());
+        let content_length =
+            ContentLength::new(self.options.clone(), self.connector.clone());
         self.content_length = Some(content_length);
         self
     }
@@ -150,8 +152,9 @@ impl Future for CoreProcess {
                 }
                 InnerState::Task => {
                     if let Some(ref mut range_stack) = self.range_stack {
-                        let (sender, receiver) =
-                            channel::<(RangePart, Bytes)>((self.config.concurrent + 1) as usize);
+                        let (sender, receiver) = channel::<(RangePart, Bytes)>(
+                            (self.config.concurrent + 1) as usize,
+                        );
 
                         let stream_header =
                             StreamHander::new(&self.config.path, receiver)?.map(|_| {
@@ -199,7 +202,10 @@ struct StreamHander {
 }
 
 impl StreamHander {
-    fn new(path: &str, receiver: Receiver<(RangePart, Bytes)>) -> Result<StreamHander, AgetError> {
+    fn new(
+        path: &str,
+        receiver: Receiver<(RangePart, Bytes)>,
+    ) -> Result<StreamHander, AgetError> {
         let task_info = TaskInfo::new(path)?;
 
         let mut file = File::new(path, false)?;

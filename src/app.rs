@@ -131,12 +131,13 @@ impl App {
         };
 
         // chunk length
-        let chunk_length = if let Some(chunk_length) = self.matches.value_of("chunk-length") {
-            chunk_length.literal_size()?
-        } else {
-            // 500k
-            1024 * 500
-        };
+        let chunk_length =
+            if let Some(chunk_length) = self.matches.value_of("chunk-length") {
+                chunk_length.literal_size()?
+            } else {
+                // 500k
+                1024 * 500
+            };
 
         Ok(Config::new(
             uri,

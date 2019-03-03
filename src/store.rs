@@ -133,7 +133,11 @@ impl File {
         }
     }
 
-    pub fn write(&mut self, buf: &[u8], seek: Option<SeekFrom>) -> Result<usize, AgetError> {
+    pub fn write(
+        &mut self,
+        buf: &[u8],
+        seek: Option<SeekFrom>,
+    ) -> Result<usize, AgetError> {
         if let Some(seek) = seek {
             self.seek(seek)?;
         }
@@ -141,7 +145,11 @@ impl File {
         Ok(s)
     }
 
-    pub fn read(&mut self, buf: &mut [u8], seek: Option<SeekFrom>) -> Result<usize, AgetError> {
+    pub fn read(
+        &mut self,
+        buf: &mut [u8],
+        seek: Option<SeekFrom>,
+    ) -> Result<usize, AgetError> {
         if let Some(seek) = seek {
             self.seek(seek)?;
         }
@@ -313,7 +321,10 @@ impl AgetFile {
         Ok(gaps)
     }
 
-    pub fn write_content_length(&mut self, content_length: u64) -> Result<(), AgetError> {
+    pub fn write_content_length(
+        &mut self,
+        content_length: u64,
+    ) -> Result<(), AgetError> {
         let buf = u64_to_u8x8(content_length);
         self.inner.write(&buf, Some(SeekFrom::Start(0)))?;
         Ok(())

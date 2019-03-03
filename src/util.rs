@@ -115,5 +115,5 @@ impl TimeOfFmt for u64 {
 macro_rules! print_err {
     ( $ctx:expr, $err:expr ) => {
         eprintln!("[{}:{}] {}: {}", file!(), line!(), $ctx, $err);
-    }
+    };
 }

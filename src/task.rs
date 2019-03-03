@@ -95,9 +95,9 @@ impl Future for RequestTask {
                         .send()
                         .from_err()
                         .and_then(move |resp: ClientResponse| {
-                            resp.payload()
-                                .from_err()
-                                .fold(sender.clone(), move |_, chunk| {
+                            resp.payload().from_err().fold(
+                                sender.clone(),
+                                move |_, chunk| {
                                     let len = chunk.len() as u64;
                                     let mut range = range.lock().unwrap();
                                     let start = range.start;
@@ -116,7 +116,8 @@ impl Future for RequestTask {
                                             NetError::ActixError
                                         })
                                     // Ok::<_, NetError>(())
-                                })
+                                },
+                            )
                         })
                         .map(|_| ());
 
