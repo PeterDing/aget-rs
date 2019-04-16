@@ -71,7 +71,7 @@ impl AgetRequestOptions {
         builder
             .method(self.method.clone())
             .uri(self.uri.clone())
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(100))
             .no_default_headers();
 
         for (ref key, ref val) in &self.headers {
@@ -150,14 +150,21 @@ impl Future for Redirect {
                     return Err(err);
                 }
 
+                let mut request = request.unwrap();
+                request
+                    .headers_mut()
+                    .insert(header::RANGE, "bytes=0-1".parse().unwrap());
+
                 let request = request
-                    .unwrap()
                     .send()
                     .map_err(|err| {
                         print_err!("redirect error", err);
                         NetError::ActixError
                     })
                     .and_then(|resp: ClientResponse| {
+                        debug!("Redirect response's headers", resp.headers());
+                        // debug!("Redirect response's body", &resp.body().wait().unwrap());
+
                         if let Some(h) = resp.headers().get(header::LOCATION) {
                             if let Ok(s) = h.to_str() {
                                 return Ok(Some(s.to_string()));
@@ -225,6 +232,9 @@ impl Future for ContentLength {
                         NetError::ActixError
                     })
                     .and_then(|resp: ClientResponse| {
+                        debug!("ContentLength response's headers", resp.headers());
+                        // debug!("ContentLength response's body", &resp.body().wait().unwrap());
+
                         if let Some(h) = resp.headers().get(header::CONTENT_RANGE) {
                             if let Ok(s) = h.to_str() {
                                 if let Some(index) = s.find("/") {

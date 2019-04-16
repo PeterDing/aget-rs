@@ -19,6 +19,7 @@ use crate::printer::Printer;
 use crate::request::{AgetRequestOptions, ContentLength, Redirect};
 use crate::store::{AgetFile, File, TaskInfo};
 use crate::task::RequestTask;
+use crate::util::QUIET;
 
 enum InnerState {
     Redirect,
@@ -64,12 +65,14 @@ impl CoreProcess {
     }
 
     fn make_redirect(&mut self) -> &mut Self {
+        debug!("Make Redirect task");
         let redirect = Redirect::new(self.options.clone(), self.connector.clone());
         self.redirect = Some(redirect);
         self
     }
 
     fn make_content_length(&mut self) -> &mut Self {
+        debug!("Make ContentLength task");
         let content_length =
             ContentLength::new(self.options.clone(), self.connector.clone());
         self.content_length = Some(content_length);
@@ -77,18 +80,23 @@ impl CoreProcess {
     }
 
     fn check_content_length(&self, content_length: u64) -> Result<()> {
+        debug!("Check content length", content_length);
         let mut aget_file = AgetFile::new(&self.config.path)?;
         if aget_file.exists() {
             aget_file.open()?;
             if content_length != aget_file.content_length()? {
+                debug!("!! the content length that response returned isn't equal of aget file",
+                       format!("{} != {}", content_length, aget_file.content_length()?));
                 return Err(AgetError::ContentLengthIsNotConsistent.into());
             }
         }
+        debug!("Check content length: equal");
 
         Ok(())
     }
 
     fn set_content_length(&self, content_length: u64) -> Result<()> {
+        debug!("Set content length");
         let mut aget_file = AgetFile::new(&self.config.path)?;
         if !aget_file.exists() {
             aget_file.open()?;
@@ -101,6 +109,7 @@ impl CoreProcess {
     }
 
     fn make_range_stack(&mut self) -> Result<()> {
+        debug!("Make range stack");
         let mut aget_file = AgetFile::new(&self.config.path)?;
         aget_file.open()?;
         let gaps = aget_file.gaps()?;
@@ -111,6 +120,9 @@ impl CoreProcess {
             range_stack.append(&mut make_range_chunks(gap, chunk_length));
         }
         range_stack.reverse();
+
+        debug!("Range stack count:", range_stack.len());
+
         self.range_stack = Some(Arc::new(Mutex::new(range_stack)));
 
         Ok(())
@@ -156,12 +168,14 @@ impl Future for CoreProcess {
                             (self.config.concurrent + 1) as usize,
                         );
 
+                        debug!("Spawn StreamHander");
                         let stream_header =
                             StreamHander::new(&self.config.path, receiver)?.map(|_| {
                                 System::current().stop();
                             });
                         spawn(stream_header);
 
+                        debug!("Spawn RequestTasks", self.config.concurrent);
                         for _ in 0..self.config.concurrent {
                             let task = RequestTask::new(
                                 range_stack.clone(),
@@ -171,7 +185,6 @@ impl Future for CoreProcess {
                             )
                             .map_err(|err| {
                                 print_err!("RequestTask fails", err);
-                                ()
                             });
                             spawn(task)
                         }
@@ -235,6 +248,12 @@ impl StreamHander {
     }
 
     fn init_print(&mut self) -> Result<(), AgetError> {
+        unsafe {
+            if QUIET {
+                return Ok(());
+            }
+        }
+
         let file_name = &self.task_info.path;
         let content_length = self.task_info.content_length;
         self.printer.print_header(file_name)?;
@@ -244,6 +263,12 @@ impl StreamHander {
     }
 
     fn print_process(&mut self) -> Result<(), AgetError> {
+        unsafe {
+            if QUIET {
+                return Ok(());
+            }
+        }
+
         let total_length = self.task_info.content_length;
         let completed_length = self.task_info.completed_length();
         let (rate, eta) = self.task_info.rate_and_eta();
