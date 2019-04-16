@@ -62,7 +62,7 @@ impl Printer {
         // maximum info length is 41 e.g.
         //   1001.3k/1021.9m 97.98% 1003.1B/s eta: 12s
         let info = format!(
-            "  {completed_length}/{total_length} {percent}% {rate}/s eta: {eta}",
+            "{completed_length}/{total_length} {percent}% {rate}/s eta: {eta}",
             completed_length = completed_length_str,
             total_length = total_length_str,
             percent = percent_str,
@@ -71,7 +71,7 @@ impl Printer {
         );
 
         // set default info length
-        let info_length = 43;
+        let info_length = 41;
         let miss = info_length - info.len();
 
         let bar_length = self.terminal_width - info_length as u64 - 4;
@@ -87,7 +87,7 @@ impl Printer {
 
         write!(
             &mut self.stdout,
-            "\r  {completed_length}/{total_length} {percent}% {rate}/s eta: {eta}{miss} [{process_bar}{blank}] ",
+            "\r{completed_length}/{total_length} {percent}% {rate}/s eta: {eta}{miss} [{process_bar}{blank}] ",
             completed_length = self.colors.completed_length.paint(completed_length_str),
             total_length = self.colors.total_length.paint(total_length_str),
             percent = self.colors.percent.paint(percent_str),
