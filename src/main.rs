@@ -23,12 +23,22 @@ mod task;
 
 use crate::app::App;
 use crate::core::CoreProcess;
+use crate::util::{DEBUG, QUIET};
 
 fn main() {
     let sys = System::new("Aget");
     let app = App::new();
     match app.config() {
         Ok(config) => {
+            // set verbose
+            unsafe {
+                DEBUG = config.debug;
+                QUIET = config.quiet;
+            }
+
+            debug!("Input configuration", &config);
+
+            debug!("Make CoreProcess task");
             let core_process = CoreProcess::new(config);
 
             match core_process {

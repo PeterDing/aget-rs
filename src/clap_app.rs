@@ -66,6 +66,16 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .multiple(false)
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("debug")
+                .long("debug")
+                .help("Debug output. Print all trackback for debugging"),
+        )
+        .arg(
+            Arg::with_name("quiet")
+                .long("quiet")
+                .help("Quiet mode. Don't show progress bar and task information. But still show the error information"),
+        )
         .help_message("Print this help message.")
         .version_message("Show version information.")
 }

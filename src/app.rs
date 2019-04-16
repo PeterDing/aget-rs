@@ -20,6 +20,8 @@ pub struct Config {
     pub path: String,
     pub concurrent: u64,
     pub chunk_length: u64,
+    pub debug: bool,
+    pub quiet: bool,
 }
 
 impl Config {
@@ -31,6 +33,8 @@ impl Config {
         path: String,
         concurrent: u64,
         chunk_length: u64,
+        debug: bool,
+        quiet: bool,
     ) -> Config {
         Config {
             uri,
@@ -40,6 +44,8 @@ impl Config {
             path,
             concurrent,
             chunk_length,
+            debug,
+            quiet,
         }
     }
 }
@@ -139,6 +145,10 @@ impl App {
                 1024 * 500
             };
 
+        let debug = self.matches.is_present("debug");
+
+        let quiet = self.matches.is_present("quiet");
+
         Ok(Config::new(
             uri,
             method,
@@ -147,6 +157,8 @@ impl App {
             path,
             concurrent,
             chunk_length,
+            debug,
+            quiet,
         ))
     }
 }
