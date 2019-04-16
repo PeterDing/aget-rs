@@ -13,14 +13,14 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
 
 ## Usage
 
-1. Request a resource with default configuration
+- Request a resource with default configuration
    The default concurrent amount is `10` and chunk length is `1m`.
 
    ```shell
    ag http://cdimage.ubuntu.com/ubuntu/releases/18.10/release/ubuntu-18.10-server-amd64.iso
    ```
 
-2. Set concurrent amount and chunk length
+- Set concurrent amount and chunk length
    Use `-s` or `--concurrent` to set the number of concurrent request.
    Use `-k` or `--chunk-size` to set the chunk length of each request.
    `--chunk-size` takes a literal size description, example `1k` for one Kilobyte,
@@ -30,7 +30,7 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
    ag "url of resource" -s 20 -k 1m
    ```
 
-3. Set a path for output
+- Set a path for output
    Use `-o` or `--out` to set the path.
    If the argument is not gave, we take the last part of the url' path as the path.
 
@@ -38,14 +38,14 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
    ag "url of resource" -o /path/to/file
    ```
 
-4. Set request headers
+- Set request headers
    Use `-H` to set headers.
 
    ```shell
    ag "url of resource" -H "Cookie: key=value" -H "Accept: */*"
    ```
 
-5. Set request method and data
+- Set request method and data
    Use `-X` or `--method` to set method for http, example, `GET`, `POST`.
    The default method is `GET`.
    With a data, using `-d` or `--data`, example, `a=b`
