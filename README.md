@@ -1,4 +1,4 @@
-# Aget-rs - Fast Asynchronous Downloader with Rust 🦀
+<h1 align="center">Aget-rs - Fast Asynchronous Downloader with Rust 🦀</h1>
 
 [![Build Status](https://travis-ci.org/PeterDing/aget-rs.svg?branch=master)](https://travis-ci.org/PeterDing/aget-rs)
 
@@ -14,7 +14,7 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
 ## Usage
 
 1. Request a resource with default configuration
-   The default concurrent amount is `10` and chunk length is `500k`.
+   The default concurrent amount is `10` and chunk length is `1m`.
 
    ```shell
    ag http://cdimage.ubuntu.com/ubuntu/releases/18.10/release/ubuntu-18.10-server-amd64.iso
@@ -63,18 +63,28 @@ OPTIONS:
     -X, --method <method>                Request method,
                                          e.g. GET, POST.
                                          [default: GET]
+
     -H, --header <header>...             Request headers,
                                          e.g. -H "User-Agent: aget".
+
     -d, --data <data>                    Request with POST method with the data,
                                          e.g. -d "a=b".
+
     -o, --out <out>                      The path of output for the request,
                                          e.g. -o "/path/to/file".
+
     -s, --concurrent <concurrent>        The number of concurrent request,
                                          e.g. -s 10
                                          [default: 10]
+
     -k, --chunk-length <chunk-length>    The interval length of each concurrent request,
                                          e.g. -k 100k
                                          [default: 1m]
+
+        --debug                          Debug output. Print all trackback for debugging
+
+        --quiet                          Quiet mode. Don't show progress bar and task information. 
+                                         But still show the error information
 
     -h, --help                           Print this help message.
     -V, --version                        Show version information.
