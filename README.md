@@ -7,6 +7,10 @@ It requests a resource with a number of concurrent asynchronous request in a sin
 
 Especially, the concurrent amount can be any positive number as your wish.
 
+## Dependences
+
+Aget-rs needs `openssl > 1.0.2g`
+
 ## Installation
 
 You can download the last release from https://github.com/PeterDing/aget-rs/releases
@@ -14,6 +18,7 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
 ## Usage
 
 - Request a resource with default configuration
+
    The default concurrent amount is `10` and chunk length is `1m`.
 
    ```shell
@@ -21,34 +26,39 @@ You can download the last release from https://github.com/PeterDing/aget-rs/rele
    ```
 
 - Set concurrent amount and chunk length
-   Use `-s` or `--concurrent` to set the number of concurrent request.
-   Use `-k` or `--chunk-size` to set the chunk length of each request.
-   `--chunk-size` takes a literal size description, example `1k` for one Kilobyte,
-   `2m` for two Megabyte, `1g` for Gigabyte.
+
+   Use `-s` or `--concurrent` to set the number of concurrent request.  
+   Use `-k` or `--chunk-size` to set the chunk length of each request.  
+   `--chunk-size` takes a literal size description, example `1k` for one Kilobyte,  
+   `2m` for two Megabyte, `1g` for Gigabyte.  
 
    ```shell
    ag "url of resource" -s 20 -k 1m
    ```
 
 - Set a path for output
-   Use `-o` or `--out` to set the path.
-   If the argument is not gave, we take the last part of the url' path as the path.
+
+   Use `-o` or `--out` to set the path.  
+   If the argument is not gave, we take the last part of the url' path as the path.  
 
    ```shell
    ag "url of resource" -o /path/to/file
    ```
 
 - Set request headers
-   Use `-H` to set headers.
+
+   Use `-H` to set headers.  
 
    ```shell
    ag "url of resource" -H "Cookie: key=value" -H "Accept: */*"
    ```
 
 - Set request method and data
-   Use `-X` or `--method` to set method for http, example, `GET`, `POST`.
-   The default method is `GET`.
-   With a data, using `-d` or `--data`, example, `a=b`
+
+   Use `-X` or `--method` to set method for http, example, `GET`, `POST`.  
+   The default method is `GET`.  
+   With a data, using `-d` or `--data`, example, `a=b`  
+
    ```shell
    ag "url of resource" -d "a=b"
    ```
