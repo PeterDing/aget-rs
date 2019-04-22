@@ -60,7 +60,7 @@ impl Future for RequestTask {
         loop {
             if let Some(ref mut request) = self.request {
                 match request.poll() {
-                    Ok(Async::Ready(t)) => t,
+                    Ok(Async::Ready(t)) => (),
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(_) => {
                         let range = self.range.clone();
@@ -71,7 +71,7 @@ impl Future for RequestTask {
                 self.request = None;
             } else {
                 if let Some(range) = self.pop_range() {
-                    let request = self.options.build(self.connector.clone());
+                    let request = self.options.build(self.connector.clone(), 5);
 
                     if let Err(err) = request {
                         print_err!("build request fails", err);
@@ -93,6 +93,18 @@ impl Future for RequestTask {
 
                     let request = request
                         .send()
+                        .map_err(|err| {
+                            // print_err!("request fails", err);
+                            // debug!(format!("request error: {:?}", err));
+                            NetError::ActixError
+                        })
+                        .and_then(|resp| {
+                            if !resp.status().is_success() {
+                                Err(NetError::Unsuccess(resp.status().as_u16()))
+                            } else {
+                                Ok(resp)
+                            }
+                        })
                         .from_err()
                         .and_then(move |resp: ClientResponse| {
                             resp.payload().from_err().fold(
