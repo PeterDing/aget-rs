@@ -41,8 +41,9 @@ pub struct CoreProcess {
 impl CoreProcess {
     pub fn new(config: Config) -> Result<CoreProcess> {
         let connector = ClientConnector::default()
-            .conn_lifetime(Duration::from_secs(60 * 60))
-            .conn_keep_alive(Duration::from_secs(60 * 60))
+            .limit(0) // no limit simultaneous connections.
+            .conn_keep_alive(Duration::from_secs(5))
+            .conn_lifetime(Duration::from_secs(60 * 10))
             .start();
         let headers = &config
             .headers
