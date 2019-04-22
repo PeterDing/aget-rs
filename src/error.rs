@@ -131,8 +131,8 @@ impl From<IoError> for AgetError {
 
 #[derive(Fail, Debug)]
 pub enum NetError {
-    #[fail(display = "an internal error.")]
-    ActixError,
+    #[fail(display = "an internal error: {}", _0)]
+    ActixError(String),
     #[fail(display = "content does not has length")]
     NoContentLength,
     #[fail(display = "uri is invalid: {}", _0)]
@@ -145,7 +145,7 @@ impl AgetFail for NetError {}
 
 impl From<actix_web::Error> for NetError {
     fn from(err: actix_web::Error) -> NetError {
-        NetError::ActixError
+        NetError::ActixError(format!("{}", err))
     }
 }
 
@@ -161,13 +161,13 @@ impl From<actix_web::Error> for NetError {
 
 impl From<actix_web::client::SendRequestError> for NetError {
     fn from(err: actix_web::client::SendRequestError) -> NetError {
-        NetError::ActixError
+        NetError::ActixError(format!("{}", err))
     }
 }
 
 impl From<actix_web::error::PayloadError> for NetError {
     fn from(err: actix_web::error::PayloadError) -> NetError {
-        NetError::ActixError
+        NetError::ActixError(format!("{}", err))
     }
 }
 

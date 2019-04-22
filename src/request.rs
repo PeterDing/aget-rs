@@ -160,7 +160,7 @@ impl Future for Redirect {
                     .send()
                     .map_err(|err| {
                         print_err!("redirect error", err);
-                        NetError::ActixError
+                        NetError::ActixError(format!("{}", err))
                     })
                     .and_then(|resp: ClientResponse| {
                         debug!("Redirect response's headers", resp.headers());
@@ -230,7 +230,7 @@ impl Future for ContentLength {
                     .send()
                     .map_err(|err| {
                         print_err!("content length request error", err);
-                        NetError::ActixError
+                        NetError::ActixError(format!("{}", err))
                     })
                     .and_then(|resp: ClientResponse| {
                         debug!("ContentLength response's headers", resp.headers());

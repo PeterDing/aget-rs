@@ -62,7 +62,8 @@ impl Future for RequestTask {
                 match request.poll() {
                     Ok(Async::Ready(t)) => (),
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(_) => {
+                    Err(err) => {
+                        debug!("request error", err);
                         let range = self.range.clone();
                         let range = range.lock().unwrap();
                         self.push_range(range.clone());
@@ -96,7 +97,7 @@ impl Future for RequestTask {
                         .map_err(|err| {
                             // print_err!("request fails", err);
                             // debug!(format!("request error: {:?}", err));
-                            NetError::ActixError
+                            NetError::ActixError(format!("{}", err))
                         })
                         .and_then(|resp| {
                             if !resp.status().is_success() {
@@ -125,7 +126,7 @@ impl Future for RequestTask {
                                         .send((RangePart::new(start, end - 1), chunk))
                                         .map_err(|err| {
                                             print_err!("sender fails", err);
-                                            NetError::ActixError
+                                            NetError::ActixError(format!("{}", err))
                                         })
                                     // Ok::<_, NetError>(())
                                 },
