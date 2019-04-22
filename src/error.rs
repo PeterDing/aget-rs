@@ -137,6 +137,8 @@ pub enum NetError {
     NoContentLength,
     #[fail(display = "uri is invalid: {}", _0)]
     InvaildUri(String),
+    #[fail(display = "response status code is: {}", _0)]
+    Unsuccess(u16),
 }
 
 impl AgetFail for NetError {}
