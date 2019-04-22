@@ -65,13 +65,14 @@ impl AgetRequestOptions {
     pub fn build(
         &self,
         connector: Addr<ClientConnector>,
+        timeout: u64,
     ) -> Result<ClientRequest, NetError> {
         let mut builder = ClientRequest::build();
         builder.with_connector(connector);
         builder
             .method(self.method.clone())
             .uri(self.uri.clone())
-            .timeout(Duration::from_secs(100))
+            .timeout(Duration::from_secs(timeout))
             .no_default_headers();
 
         for (ref key, ref val) in &self.headers {
@@ -144,7 +145,7 @@ impl Future for Redirect {
                     return Ok(Async::Ready(self.options.uri()));
                 }
             } else {
-                let request = self.options.build(self.connector.clone());
+                let request = self.options.build(self.connector.clone(), 100);
 
                 if let Err(err) = request {
                     return Err(err);
@@ -214,7 +215,7 @@ impl Future for ContentLength {
                 self.request = None;
                 return Ok(Async::Ready(length));
             } else {
-                let request = self.options.build(self.connector.clone());
+                let request = self.options.build(self.connector.clone(), 100);
 
                 if let Err(err) = request {
                     return Err(err);
