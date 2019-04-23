@@ -23,6 +23,11 @@ impl Printer {
         }
     }
 
+    pub fn print_msg(&mut self, msg: &str) -> Result<(), AgetError> {
+        writeln!(&mut self.stdout, "\n  {}", self.colors.msg.paint(msg))?;
+        Ok(())
+    }
+
     pub fn print_header(&mut self, path: &str) -> Result<(), AgetError> {
         writeln!(
             &mut self.stdout,
@@ -113,6 +118,7 @@ pub struct Colors {
     pub percent: Style,
     pub rate: Style,
     pub eta: Style,
+    pub msg: Style,
 }
 
 impl Colors {
@@ -129,6 +135,7 @@ impl Colors {
             percent: Yellow.bold(),
             rate: Blue.bold(),
             eta: Cyan.bold(),
+            msg: Yellow.italic(),
         }
     }
 }
