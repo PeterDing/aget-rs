@@ -83,7 +83,7 @@ OPTIONS:
     -o, --out <out>                      The path of output for the request,
                                          e.g. -o "/path/to/file".
 
-    -s, --concurrent <concurrent>        The number of concurrent request,
+    -s, --concurrency <concurrency>      The number of concurrent request,
                                          e.g. -s 10
                                          [default: 10]
 
