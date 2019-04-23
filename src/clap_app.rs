@@ -49,10 +49,10 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("concurrent")
+            Arg::with_name("concurrency")
                 .short("s")
-                .long("concurrent")
-                .help("The number of concurrent request e.g. -s 10")
+                .long("concurrency")
+                .help("The number of concurrency request e.g. -s 10")
                 .default_value("10")
                 .multiple(false)
                 .takes_value(true),

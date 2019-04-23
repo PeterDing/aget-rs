@@ -18,7 +18,7 @@ pub struct Config {
     pub headers: Vec<String>,
     pub data: Option<String>,
     pub path: String,
-    pub concurrent: u64,
+    pub concurrency: u64,
     pub chunk_length: u64,
     pub debug: bool,
     pub quiet: bool,
@@ -31,7 +31,7 @@ impl Config {
         headers: Vec<String>,
         data: Option<String>,
         path: String,
-        concurrent: u64,
+        concurrency: u64,
         chunk_length: u64,
         debug: bool,
         quiet: bool,
@@ -42,7 +42,7 @@ impl Config {
             headers,
             data,
             path,
-            concurrent,
+            concurrency,
             chunk_length,
             debug,
             quiet,
@@ -129,9 +129,9 @@ impl App {
             Vec::new()
         };
 
-        // concurrent
-        let concurrent = if let Some(concurrent) = self.matches.value_of("concurrent") {
-            concurrent.parse::<u64>()?
+        // concurrency
+        let concurrency = if let Some(concurrency) = self.matches.value_of("concurrency") {
+            concurrency.parse::<u64>()?
         } else {
             10
         };
@@ -155,7 +155,7 @@ impl App {
             headers,
             data,
             path,
-            concurrent,
+            concurrency,
             chunk_length,
             debug,
             quiet,
