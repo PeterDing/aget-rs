@@ -1,6 +1,6 @@
 [package]
 name = "aget-rs"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["PeterDing <dfhayst@gmail.com>"]
 homepage = "https://github.com/PeterDing/aget-rs"
 description="Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
