@@ -130,7 +130,8 @@ impl App {
         };
 
         // concurrency
-        let concurrency = if let Some(concurrency) = self.matches.value_of("concurrency") {
+        let concurrency = if let Some(concurrency) = self.matches.value_of("concurrency")
+        {
             concurrency.parse::<u64>()?
         } else {
             10

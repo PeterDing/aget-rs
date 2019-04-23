@@ -303,7 +303,8 @@ impl StreamHander {
         }
 
         if self.no_record {
-            self.printer.print_msg("Server doesn't support range request.")?;
+            self.printer
+                .print_msg("Server doesn't support range request.")?;
         }
 
         let file_name = &self.task_info.path;
