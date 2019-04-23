@@ -29,6 +29,7 @@ pub struct AgetRequestOptions {
     method: Method,
     headers: Vec<(String, String)>,
     body: Option<String>,
+    concurrent: bool,
 }
 
 impl AgetRequestOptions {
@@ -59,6 +60,7 @@ impl AgetRequestOptions {
             } else {
                 None
             },
+            concurrent: true,
         })
     }
 
@@ -107,6 +109,15 @@ impl AgetRequestOptions {
 
     pub fn set_uri(&mut self, uri: &str) -> &mut Self {
         self.uri = uri.to_string();
+        self
+    }
+
+    pub fn is_concurrent(&self) -> bool {
+        self.concurrent
+    }
+
+    pub fn no_concurrency(&mut self) -> &mut Self {
+        self.concurrent = false;
         self
     }
 }
@@ -163,6 +174,14 @@ impl Future for Redirect {
                         NetError::ActixError(format!("{}", err))
                     })
                     .and_then(|resp: ClientResponse| {
+                        let status = resp.status();
+                        if !(status.is_success() || status.is_redirection()) {
+                            Err(NetError::Unsuccess(status.as_u16()))
+                        } else {
+                            Ok(resp)
+                        }
+                    })
+                    .and_then(|resp: ClientResponse| {
                         debug!("Redirect response's headers", resp.headers());
                         // debug!("Redirect response's body", &resp.body().wait().unwrap());
 
@@ -180,10 +199,17 @@ impl Future for Redirect {
     }
 }
 
+#[derive(Debug)]
+pub enum ContentLengthItem {
+    RangeLength(u64),
+    DirectLength(u64),
+    NoLength,
+}
+
 pub struct ContentLength {
     options: AgetRequestOptions,
     connector: Addr<ClientConnector>,
-    request: Option<Box<dyn Future<Item = Option<u64>, Error = NetError>>>,
+    request: Option<Box<dyn Future<Item = ContentLengthItem, Error = NetError>>>,
 }
 
 impl ContentLength {
@@ -205,7 +231,7 @@ impl ContentLength {
 }
 
 impl Future for ContentLength {
-    type Item = Option<u64>;
+    type Item = ContentLengthItem;
     type Error = NetError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -233,6 +259,13 @@ impl Future for ContentLength {
                         NetError::ActixError(format!("{}", err))
                     })
                     .and_then(|resp: ClientResponse| {
+                        if !resp.status().is_success() {
+                            Err(NetError::Unsuccess(resp.status().as_u16()))
+                        } else {
+                            Ok(resp)
+                        }
+                    })
+                    .and_then(|resp: ClientResponse| {
                         debug!("ContentLength response's headers", resp.headers());
                         // debug!("ContentLength response's body", &resp.body().wait().unwrap());
 
@@ -240,17 +273,30 @@ impl Future for ContentLength {
                             if let Ok(s) = h.to_str() {
                                 if let Some(index) = s.find("/") {
                                     if let Ok(length) = &s[index + 1..].parse::<u64>() {
-                                        return Ok(Some(length.clone()));
+                                        return Ok(ContentLengthItem::RangeLength(
+                                            length.clone(),
+                                        ));
                                     }
                                 }
                             }
-                        } else {
-                            print_err!(
-                                "server doesn't support partial requests",
-                                "can't use range requests"
-                            );
                         }
-                        Ok(None)
+
+                        if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
+                            if let Ok(s) = h.to_str() {
+                                if let Ok(length) = s.parse::<u64>() {
+                                    return Ok(ContentLengthItem::DirectLength(
+                                        length.clone(),
+                                    ));
+                                }
+                            }
+                        }
+
+                        print_err!(
+                            "server doesn't support partial requests",
+                            "can't use range requests"
+                        );
+
+                        Ok(ContentLengthItem::NoLength)
                     });
 
                 self.request = Some(Box::new(request));

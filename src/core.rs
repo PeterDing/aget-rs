@@ -16,7 +16,7 @@ use crate::app::Config;
 use crate::chunk::{make_range_chunks, RangePart, RangeStack};
 use crate::error::{AgetError, Error, NetError, Result};
 use crate::printer::Printer;
-use crate::request::{AgetRequestOptions, ContentLength, Redirect};
+use crate::request::{AgetRequestOptions, ContentLength, ContentLengthItem, Redirect};
 use crate::store::{AgetFile, File, TaskInfo};
 use crate::task::RequestTask;
 use crate::util::QUIET;
@@ -42,7 +42,7 @@ impl CoreProcess {
     pub fn new(config: Config) -> Result<CoreProcess> {
         let connector = ClientConnector::default()
             .limit(0) // no limit simultaneous connections.
-            .conn_keep_alive(Duration::from_secs(5))
+            .conn_keep_alive(Duration::from_secs(10))
             .conn_lifetime(Duration::from_secs(60 * 10))
             .start();
         let headers = &config
@@ -63,6 +63,10 @@ impl CoreProcess {
             redirect: None,
             content_length: None,
         })
+    }
+
+    fn set_connector(&mut self, connector: Addr<ClientConnector>) {
+        self.connector = connector;
     }
 
     fn make_redirect(&mut self) -> &mut Self {
@@ -97,7 +101,7 @@ impl CoreProcess {
     }
 
     fn set_content_length(&self, content_length: u64) -> Result<()> {
-        debug!("Set content length");
+        debug!("Set content length", content_length);
         let mut aget_file = AgetFile::new(&self.config.path)?;
         if !aget_file.exists() {
             aget_file.open()?;
@@ -111,19 +115,25 @@ impl CoreProcess {
 
     fn make_range_stack(&mut self) -> Result<()> {
         debug!("Make range stack");
-        let mut aget_file = AgetFile::new(&self.config.path)?;
-        aget_file.open()?;
-        let gaps = aget_file.gaps()?;
 
-        let chunk_length = self.config.chunk_length;
         let mut range_stack: Vec<RangePart> = Vec::new();
-        for gap in gaps.iter() {
-            range_stack.append(&mut make_range_chunks(gap, chunk_length));
-        }
-        range_stack.reverse();
 
-        debug!("Range stack count:", range_stack.len());
+        if self.options.is_concurrent() {
+            let mut aget_file = AgetFile::new(&self.config.path)?;
+            aget_file.open()?;
+            let gaps = aget_file.gaps()?;
 
+            let chunk_length = self.config.chunk_length;
+            for gap in gaps.iter() {
+                let mut list = make_range_chunks(gap, chunk_length);
+                range_stack.append(&mut list);
+            }
+            range_stack.reverse();
+        } else {
+            range_stack.push(RangePart::new(0, 0));
+        };
+
+        debug!("Range stack count", range_stack.len());
         self.range_stack = Some(Arc::new(Mutex::new(range_stack)));
 
         Ok(())
@@ -150,44 +160,78 @@ impl Future for CoreProcess {
                 InnerState::ContentLength => {
                     if let Some(ref mut content_length) = self.content_length {
                         let content_length = try_ready!(content_length.poll());
-                        if let Some(content_length) = content_length {
-                            self.check_content_length(content_length)?;
-                            self.set_content_length(content_length)?;
-                            self.make_range_stack()?;
-                            self.state = InnerState::Task;
-                            self.content_length = None;
-                        } else {
-                            return Err(NetError::NoContentLength.into());
+
+                        debug!("ContentLengthItem", content_length);
+
+                        match content_length {
+                            ContentLengthItem::RangeLength(content_length) => {
+                                self.check_content_length(content_length)?;
+                                self.set_content_length(content_length)?;
+                            }
+                            ContentLengthItem::DirectLength(content_length) => {
+                                self.set_content_length(content_length)?;
+                                self.options.no_concurrency();
+
+                                // connector is always alive
+                                let connector = ClientConnector::default()
+                                    .limit(0) // no limit simultaneous connections.
+                                    .conn_keep_alive(Duration::from_secs(10))
+                                    .conn_lifetime(Duration::from_secs(0))
+                                    .start();
+
+                                self.set_connector(connector);
+                            }
+                            ContentLengthItem::NoLength => {
+                                return Err(NetError::NoContentLength.into());
+                            }
                         }
+
+                        self.make_range_stack()?;
+                        self.state = InnerState::Task;
+                        self.content_length = None;
                     } else {
                         self.make_content_length();
                     }
                 }
                 InnerState::Task => {
                     if let Some(ref mut range_stack) = self.range_stack {
+                        let is_concurrent = self.options.is_concurrent();
                         let (sender, receiver) = channel::<(RangePart, Bytes)>(
-                            (self.config.concurrent + 1) as usize,
+                            (self.config.concurrency + 1) as usize,
                         );
 
                         debug!("Spawn StreamHander");
-                        let stream_header =
-                            StreamHander::new(&self.config.path, receiver)?.map(|_| {
-                                System::current().stop();
-                            });
+                        let stream_header = StreamHander::new(
+                            &self.config.path,
+                            receiver,
+                            !is_concurrent,
+                        )?
+                        .map(|_| {
+                            System::current().stop();
+                        });
                         spawn(stream_header);
 
-                        debug!("Spawn RequestTasks", self.config.concurrent);
-                        for _ in 0..self.config.concurrent {
+                        let concurrency = if is_concurrent {
+                            self.config.concurrency
+                        } else {
+                            1
+                        };
+                        debug!("Spawn RequestTasks", concurrency);
+                        for _ in 0..self.config.concurrency {
                             let task = RequestTask::new(
                                 range_stack.clone(),
                                 self.options.clone(),
                                 self.connector.clone(),
                                 sender.clone(),
                             )
-                            .map_err(|err| {
+                            .map_err(move |err| {
                                 print_err!("RequestTask fails", err);
+                                if !is_concurrent {
+                                    // Exit process when the only one request task fails
+                                    System::current().stop();
+                                }
                             });
-                            spawn(task)
+                            spawn(task);
                         }
                     } else {
                         unreachable!("Bug: No RangeStack");
@@ -213,12 +257,14 @@ struct StreamHander {
     aget_file: AgetFile,
     task_info: TaskInfo,
     printer: Printer,
+    no_record: bool,
 }
 
 impl StreamHander {
     fn new(
         path: &str,
         receiver: Receiver<(RangePart, Bytes)>,
+        no_record: bool,
     ) -> Result<StreamHander, AgetError> {
         let task_info = TaskInfo::new(path)?;
 
@@ -243,6 +289,7 @@ impl StreamHander {
             aget_file,
             task_info,
             printer,
+            no_record,
         };
         handler.init_print()?;
         Ok(handler)
@@ -253,6 +300,10 @@ impl StreamHander {
             if QUIET {
                 return Ok(());
             }
+        }
+
+        if self.no_record {
+            self.printer.print_msg("Server doesn't support range request.")?;
         }
 
         let file_name = &self.task_info.path;
@@ -278,6 +329,17 @@ impl StreamHander {
         Ok(())
     }
 
+    fn record_range(&mut self, range_part: RangePart) -> Result<(), ()> {
+        if self.no_record {
+            return Ok(());
+        }
+        if let Err(err) = self.aget_file.write_interval(range_part) {
+            print_err!("write interval to aget file fails", err);
+            return Err(());
+        }
+        return Ok(());
+    }
+
     fn teardown(&mut self) -> Result<(), AgetError> {
         self.aget_file.remove()?;
         Ok(())
@@ -291,9 +353,7 @@ impl Future for StreamHander {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             match self.stream.poll() {
-                Ok(Async::NotReady) => {
-                    return Ok(Async::NotReady);
-                }
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(item)) => {
                     match item {
                         Some(Item::Value((range_part, buf))) => {
@@ -309,10 +369,7 @@ impl Future for StreamHander {
                             }
 
                             // write range_part
-                            if let Err(err) = self.aget_file.write_interval(range_part) {
-                                print_err!("write interval to aget file fails", err);
-                                return Err(());
-                            }
+                            self.record_range(range_part)?;
 
                             // update `task_info`
                             self.task_info.add_completed(interval_length);
