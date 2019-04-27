@@ -24,8 +24,7 @@ install:
   - echo yes > %VCPKG_ROOT%\Downloads\AlwaysAllowDownloads
   - if defined VCPKG_DEFAULT_TRIPLET %VCPKG_ROOT%\vcpkg.exe install openssl
 
-build:
-  - cargo bulid  --target %TARGET% --verbose
+build: false
 
 test_script:
   - cargo test --target %TARGET% --verbose
@@ -46,7 +45,7 @@ deploy:
   # - Then go to 'https://ci.appveyor.com/tools/encrypt' and enter the newly generated token.
   # - Enter the "encrypted value" below
   auth_token:
-    secure: oO4/J+hcFXgXcEqEc8gzlQNqLG0IxU78s4EyH+uczGdsyWajb3yipxPR6nXUvmoj
+    secure: n/a
   provider: GitHub
   on:
     RUST_VERSION: stable
