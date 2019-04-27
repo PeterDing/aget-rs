@@ -27,6 +27,8 @@ test_script:
   - cargo test --target %TARGET% --verbose
   - cargo run --target %TARGET% -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.10/release/ubuntu-base-18.10-base-amd64.tar.gz
   - ps: Remove-Item –path .\ubuntu*
+  - cargo build --release --verbose
+  - ps: ci\before_deploy.ps1
 
 before_deploy:
   # Generate artifacts for release
