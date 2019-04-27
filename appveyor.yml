@@ -6,9 +6,6 @@ environment:
     CRATE_NAME: aget-rs
     CARGO_HOME: "c:\\cargo"
     RUSTUP_HOME: "c:\\rustup"
-    # 1.1.0, 64/32 bit
-    OPENSSL_VERSION: 1_1_0j
-    OPENSSL_DIR: C:\OpenSSL
     VCPKG_DEFAULT_TRIPLET: x64-windows
     VCPKGRS_DYNAMIC: 1
 
