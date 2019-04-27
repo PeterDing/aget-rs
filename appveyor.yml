@@ -27,8 +27,6 @@ test_script:
   - cargo test --target %TARGET% --verbose
   - cargo run --target %TARGET% -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.10/release/ubuntu-base-18.10-base-amd64.tar.gz
   - ps: Remove-Item –path .\ubuntu*
-  - cargo build --release --verbose
-  - ps: ci\before_deploy.ps1
 
 before_deploy:
   # Generate artifacts for release
@@ -44,7 +42,7 @@ deploy:
   # - Then go to 'https://ci.appveyor.com/tools/encrypt' and enter the newly generated token.
   # - Enter the "encrypted value" below
   auth_token:
-    secure: n/a
+    secure: wXCkb6BE84VQOXhGKSRtANViz8PYnptF8K5HKJlsetkUpVllaHDh47B49FBiwj/v
   provider: GitHub
   on:
     RUST_VERSION: stable
