@@ -1,0 +1,63 @@
+environment:
+  global:
+    TARGET: x86_64-pc-windows-msvc
+    BITS: 64
+    RUST_VERSION: stable
+    CRATE_NAME: aget-rs
+    CARGO_HOME: "c:\\cargo"
+    RUSTUP_HOME: "c:\\rustup"
+    # 1.1.0, 64/32 bit
+    OPENSSL_VERSION: 1_1_0j
+    OPENSSL_DIR: C:\OpenSSL
+    VCPKG_DEFAULT_TRIPLET: x64-windows
+    VCPKGRS_DYNAMIC: 1
+
+install:
+  - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+  - rustup-init.exe -y --default-host %TARGET%
+  - set PATH=%PATH%;C:\cargo\bin
+  - rustc -Vv
+  - cargo -V
+  - git clone https://github.com/Microsoft/vcpkg c:\projects\vcpkg
+  - c:\projects\vcpkg\bootstrap-vcpkg.bat
+  - set VCPKG_ROOT=c:\projects\vcpkg
+  - echo yes > %VCPKG_ROOT%\Downloads\AlwaysAllowDownloads
+  - %VCPKG_ROOT%\vcpkg.exe install openssl
+
+build:
+  - cargo bulid  --target %TARGET% --verbose
+
+test_script:
+  - cargo test --target %TARGET% --verbose
+  - cargo run --target %TARGET% -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.10/release/ubuntu-base-18.10-base-amd64.tar.gz
+  - ps: Remove-Item –path .\ubuntu*
+
+before_deploy:
+  # Generate artifacts for release
+  - cargo build --release --verbose
+  - ps: ci\before_deploy.ps1
+
+deploy:
+  description: 'Automatically deployed release'
+  artifact: /.*\.zip/
+  # Here's how:
+  # - Go to 'https://github.com/settings/tokens/new' and generate a Token with only the
+  # `public_repo` scope enabled
+  # - Then go to 'https://ci.appveyor.com/tools/encrypt' and enter the newly generated token.
+  # - Enter the "encrypted value" below
+  auth_token:
+    secure: oO4/J+hcFXgXcEqEc8gzlQNqLG0IxU78s4EyH+uczGdsyWajb3yipxPR6nXUvmoj
+  provider: GitHub
+  on:
+    RUST_VERSION: stable
+    appveyor_repo_tag: true
+
+cache:
+  - C:\Users\appveyor\.cargo\registry
+  - target
+
+notifications:
+  - provider: Email
+    on_build_success: false
+    on_build_failure: false
+on_build_status_changed: false
