@@ -22,7 +22,7 @@ install:
   - c:\projects\vcpkg\bootstrap-vcpkg.bat
   - set VCPKG_ROOT=c:\projects\vcpkg
   - echo yes > %VCPKG_ROOT%\Downloads\AlwaysAllowDownloads
-  - %VCPKG_ROOT%\vcpkg.exe install openssl
+  - if defined VCPKG_DEFAULT_TRIPLET %VCPKG_ROOT%\vcpkg.exe install openssl
 
 build:
   - cargo bulid  --target %TARGET% --verbose
