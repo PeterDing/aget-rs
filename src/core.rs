@@ -1,6 +1,7 @@
 use std::io::SeekFrom;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::cmp::min;
 
 use futures::sync::mpsc::{channel, Receiver};
 use futures::{try_ready, Async, Future, Poll, Stream};
@@ -34,6 +35,8 @@ pub struct CoreProcess {
     connector: Addr<ClientConnector>,
     options: AgetRequestOptions,
     range_stack: Option<RangeStack>,
+    // the length of range_stack
+    range_count: u64,
     redirect: Option<Redirect>,
     content_length: Option<ContentLength>,
 }
@@ -60,6 +63,7 @@ impl CoreProcess {
             connector,
             options,
             range_stack: None,
+            range_count: 1,
             redirect: None,
             content_length: None,
         })
@@ -133,7 +137,9 @@ impl CoreProcess {
             range_stack.push(RangePart::new(0, 0));
         };
 
-        debug!("Range stack count", range_stack.len());
+        self.range_count = range_stack.len() as u64;
+
+        debug!("Range stack size", range_stack.len());
         self.range_stack = Some(Arc::new(Mutex::new(range_stack)));
 
         Ok(())
@@ -217,7 +223,7 @@ impl Future for CoreProcess {
                             1
                         };
                         debug!("Spawn RequestTasks", concurrency);
-                        for _ in 0..self.config.concurrency {
+                        for _ in 0..(min(self.config.concurrency, self.range_count)) {
                             let task = RequestTask::new(
                                 range_stack.clone(),
                                 self.options.clone(),
