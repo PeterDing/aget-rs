@@ -1,7 +1,7 @@
+use std::cmp::min;
 use std::io::SeekFrom;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::cmp::min;
 
 use futures::sync::mpsc::{channel, Receiver};
 use futures::{try_ready, Async, Future, Poll, Stream};
