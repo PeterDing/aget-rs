@@ -223,11 +223,6 @@ impl ContentLength {
             request: None,
         }
     }
-
-    pub fn set_uri(&mut self, uri: &str) -> &mut Self {
-        self.options.set_uri(uri);
-        self
-    }
 }
 
 impl Future for ContentLength {
