@@ -139,6 +139,8 @@ pub enum NetError {
     InvaildUri(String),
     #[fail(display = "response status code is: {}", _0)]
     Unsuccess(u16),
+    #[fail(display = "Redirect to: {}", _0)]
+    Redirect(String),
 }
 
 impl AgetFail for NetError {}
