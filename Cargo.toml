@@ -1,12 +1,12 @@
 [package]
 name = "aget-rs"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["PeterDing <dfhayst@gmail.com>"]
 homepage = "https://github.com/PeterDing/aget-rs"
 description="Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
 license = "MIT/Apache-2.0"
 readme = "README.md"
-categories = ["command-line-utilities"]
+categories = ["command-line-utilities", "asynchronous", "download"]
 keywords = [
     "download",
     "network",
