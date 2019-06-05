@@ -62,6 +62,7 @@ impl RequestTask {
             } else {
                 10 * 24 * 60 * 60 // 10 days
             };
+
             let request = self.options.build(self.connector.clone(), timeout);
 
             if let Err(err) = request {
@@ -91,6 +92,16 @@ impl RequestTask {
                     // print_err!("request fails", err);
                     // debug!(format!("request error: {:?}", err));
                     NetError::ActixError(format!("{}", err))
+                })
+                .and_then(|resp| {
+                    if resp.status().is_redirection() {
+                        if let Some(h) = resp.headers().get(header::LOCATION) {
+                            if let Ok(s) = h.to_str() {
+                                return Err(NetError::Redirect(s.to_string()));
+                            }
+                        }
+                    }
+                    Ok(resp)
                 })
                 .and_then(|resp| {
                     if !resp.status().is_success() {
@@ -144,7 +155,13 @@ impl Future for RequestTask {
                     Ok(Async::Ready(t)) => (),
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(err) => {
-                        if self.is_concurrent() {
+                        // handle redirect
+                        if let NetError::Redirect(uri) = err {
+                            self.options.set_uri(&uri);
+                            let range = self.range.clone();
+                            let range = range.lock().unwrap();
+                            self.push_range(range.clone());
+                        } else if self.is_concurrent() {
                             debug!("request error", err);
                             let range = self.range.clone();
                             let range = range.lock().unwrap();
