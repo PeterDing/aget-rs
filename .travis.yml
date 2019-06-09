@@ -23,7 +23,7 @@ matrix:
 
     - os: linux
       rust: stable
-      install: echo "pass install"
+      install: cargo build
       script: bash ci/benchmark.bash
 
 env:
