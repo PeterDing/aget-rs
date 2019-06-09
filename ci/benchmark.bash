@@ -13,7 +13,7 @@ echo "-: install nginx"
 sudo apt-get install -y nginx curl
 
 echo "-: start nginx"
-nginx -c "$(pwd)/ci/benchmark.nginx.conf"
+sudo nginx -c "$(pwd)/ci/benchmark.nginx.conf"
 
 echo "-: make test file"
 sudo mkdir /data
