@@ -23,7 +23,7 @@ sudo mv file.txt /data/abc
 echo "-: benchmark test begins"
 
 echo "-: Request with one connection"
-time curl http://localhost:9010/abc
+time curl http://localhost:9010/abc > abc
 rm abc
 
 echo "-: Request with 10 connections"
