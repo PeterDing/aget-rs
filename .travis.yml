@@ -23,6 +23,7 @@ matrix:
 
     - os: linux
       rust: stable
+      install: echo "pass install"
       script: bash ci/benchmark.bash
 
 env:
