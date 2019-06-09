@@ -21,6 +21,10 @@ matrix:
         - cargo install --debug --force rustfmt-nightly
       script: cargo fmt -- --check
 
+    - os: linux
+      rust: stable
+      script: bash ci/benchmark.bash
+
 env:
   global:
     # Default target on travis-ci.
