@@ -16,6 +16,60 @@ Aget-rs needs `openssl > 1.0.2g`
 
 You can download the last release from https://github.com/PeterDing/aget-rs/releases
 
+## Benchmark
+
+We conside that there is a file to download. This file has 10MB.
+The server which hosts the file has been set a limit rate to 100KB/s, but no connecting count limit.
+
+It will be easy to calculate the total costing time when we use 1, 10, 100 connections to request the file.
+
+In the benchmark test, we use `nginx` to simulate the environment where a limit rate is 100KM/s for downloading.
+
+Following is the results of using `curl` and `aget-rs`. (For more details, you can find at [here](https://travis-ci.org/PeterDing/aget-rs/jobs/543284952#L714))
+
+- One connection using `curl`
+
+  ```
+  time curl http://localhost:9010/abc
+    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                   Dload  Upload   Total   Spent    Left  Speed
+  100 10.0M  100 10.0M    0     0   100k      0  0:01:42  0:01:42 --:--:--  103k
+  real	1m42.147s
+  user	0m0.021s
+  sys	0m0.035s
+ ```
+
+  **time cost: 102s**
+
+- 10 connections using `aget-rs`
+
+  ```
+  time ag http://localhost:9010/abc -s 10 -k 1m
+      File: abc
+    Length: 10.0M (10485760)
+  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>] 
+  real	0m10.016s
+  user	0m0.040s
+  sys	0m0.020s
+  ```
+
+  **time cost: 10s, 10 times faster than curl**
+
+- 100 connections using `aget-rs`
+
+  ```
+  time ag http://localhost:9010/abc -s 100 -k 103k
+      File: abc
+    Length: 10.0M (10485760)
+  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>] 
+  real	0m2.016s
+  user	0m0.087s
+  sys	0m0.029s
+  ```
+
+  **time cost: 2s, 50 times faster than curl**
+
+
 ## Usage
 
 - Request a resource with default configuration
