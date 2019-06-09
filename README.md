@@ -23,9 +23,9 @@ The server which hosts the file has been set a limit rate to 100KB/s, but no con
 
 It will be easy to calculate the total costing time when we use 1, 10, 100 connections to request the file.
 
-In the benchmark test, we use `nginx` to simulate the environment where a limit rate is 100KM/s for downloading.
+In the benchmark test, we use `nginx` to simulate the environment where a limit rate is 100KB/s for downloading.
 
-Following is the results of using `curl` and `aget-rs`. (For more details, you can find at [here](https://travis-ci.org/PeterDing/aget-rs/jobs/543284952#L714))
+Following is the results of using `curl` and `aget-rs`. (For more details, you can find at [here](ci/benchmark.bash))
 
 - One connection using `curl`
 
@@ -37,7 +37,7 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
   real	1m42.147s
   user	0m0.021s
   sys	0m0.035s
- ```
+  ```
 
   **time cost: 102s**
 
