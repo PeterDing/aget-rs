@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 
 use std::process::exit;
+use std::thread;
+use std::time;
 
 use futures::Future;
 
@@ -25,8 +27,9 @@ use crate::app::App;
 use crate::core::CoreProcess;
 use crate::util::{DEBUG, QUIET};
 
+static mut SUCCESS: bool = false;
+
 fn main() {
-    let sys = System::new("Aget");
     let app = App::new();
     match app.config() {
         Ok(config) => {
@@ -38,27 +41,47 @@ fn main() {
 
             debug!("Input configuration", &config);
 
-            debug!("Make CoreProcess task");
-            let core_process = CoreProcess::new(config);
-
-            match core_process {
-                Ok(core_fut) => {
-                    spawn(
-                        core_fut
-                            .map_err(|err| {
-                                print_err!("core_fut fails", err);
-                                System::current().stop();
-                                ()
-                            })
-                            .map(|_| ()),
-                    );
+            let retry_wait = config.retry_wait;
+            let max_retries = config.max_retries;
+            for i in 0..(max_retries + 1) {
+                if i > 0 {
+                    print_err!("!!! Retry", i);
+                    thread::sleep(time::Duration::from_secs(retry_wait));
                 }
-                Err(err) => {
-                    print_err!("core_fut error", err);
-                    exit(1);
+
+                let sys = System::new("Aget");
+
+                debug!("Make CoreProcess task");
+                let core_process = CoreProcess::new(config.clone());
+
+                match core_process {
+                    Ok(core_fut) => {
+                        spawn(
+                            core_fut
+                                .map_err(|err| {
+                                    print_err!("core_fut fails", err);
+                                    System::current().stop();
+                                })
+                                .map(|_| unsafe {
+                                    SUCCESS = true;
+                                }),
+                        );
+                    }
+                    Err(err) => {
+                        print_err!("core_fut error", err);
+                        exit(1);
+                    }
+                }
+
+                sys.run();
+
+                // check task state
+                unsafe {
+                    if SUCCESS {
+                        return;
+                    }
                 }
             }
-            sys.run();
         }
         Err(err) => {
             print_err!("app config fails", err);
