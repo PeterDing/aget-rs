@@ -67,6 +67,22 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("max-retries")
+                .long("max-retries")
+                .help("The maximum times of retring")
+                .default_value("5")
+                .multiple(false)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("retry-wait")
+                .long("retry-wait")
+                .help("The seconds between retries")
+                .default_value("0")
+                .multiple(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("debug")
                 .long("debug")
                 .help("Debug output. Print all trackback for debugging"),

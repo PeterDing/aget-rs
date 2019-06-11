@@ -11,7 +11,7 @@ use crate::common::AGET_EXT;
 use crate::error::{ArgError, Result};
 use crate::util::LiteralSize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub uri: String,
     pub method: String,
@@ -20,6 +20,8 @@ pub struct Config {
     pub path: String,
     pub concurrency: u64,
     pub chunk_length: u64,
+    pub max_retries: u32,
+    pub retry_wait: u64,
     pub debug: bool,
     pub quiet: bool,
 }
@@ -33,6 +35,8 @@ impl Config {
         path: String,
         concurrency: u64,
         chunk_length: u64,
+        max_retries: u32,
+        retry_wait: u64,
         debug: bool,
         quiet: bool,
     ) -> Config {
@@ -44,6 +48,8 @@ impl Config {
             path,
             concurrency,
             chunk_length,
+            max_retries,
+            retry_wait,
             debug,
             quiet,
         }
@@ -146,6 +152,20 @@ impl App {
                 1024 * 500
             };
 
+        // maximum retries
+        let max_retries = if let Some(max_retries) = self.matches.value_of("max_retries")
+        {
+            max_retries.parse::<u32>()?
+        } else {
+            5
+        };
+
+        let retry_wait = if let Some(retry_wait) = self.matches.value_of("retry_wait") {
+            retry_wait.parse::<u64>()?
+        } else {
+            5
+        };
+
         let debug = self.matches.is_present("debug");
 
         let quiet = self.matches.is_present("quiet");
@@ -158,6 +178,8 @@ impl App {
             path,
             concurrency,
             chunk_length,
+            max_retries,
+            retry_wait,
             debug,
             quiet,
         ))
