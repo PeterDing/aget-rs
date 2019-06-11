@@ -146,6 +146,9 @@ OPTIONS:
                                          e.g. -k 100k
                                          [default: 1m]
 
+        --max-retries <max-retries>      The maximum times of retring [default: 5]
+        --retry-wait <retry-wait>        The seconds between retries [default: 0]
+
         --debug                          Debug output. Print all trackback for debugging
 
         --quiet                          Quiet mode. Don't show progress bar and task information. 
