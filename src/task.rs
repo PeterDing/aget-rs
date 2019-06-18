@@ -1,19 +1,22 @@
 use std::sync::{Arc, Mutex};
 
 use actix::Addr;
-use actix_web::client::{ClientConnector, ClientResponse};
-use actix_web::{http, HttpMessage};
+use actix_web::{
+    client::{ClientConnector, ClientResponse},
+    http, HttpMessage,
+};
 
-use futures::sync::mpsc::Sender;
-use futures::{Async, Future, Poll, Sink, Stream};
+use futures::{sync::mpsc::Sender, Async, Future, Poll, Sink, Stream};
 
 use http::header;
 
 use bytes::Bytes;
 
-use crate::chunk::{AtomicRangStack, RangePart, RangeStack};
-use crate::error::NetError;
-use crate::request::AgetRequestOptions;
+use crate::{
+    chunk::{AtomicRangStack, RangePart, RangeStack},
+    error::NetError,
+    request::AgetRequestOptions,
+};
 
 pub struct RequestTask {
     options: AgetRequestOptions,

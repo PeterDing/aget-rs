@@ -1,12 +1,16 @@
-use std::cmp::max;
-use std::fs::{remove_file, File as StdFile, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
-use std::time::Instant;
+use std::{
+    cmp::max,
+    fs::{remove_file, File as StdFile, OpenOptions},
+    io::{Read, Seek, SeekFrom, Write},
+    path::PathBuf,
+    time::Instant,
+};
 
-use crate::chunk::RangePart;
-use crate::common::AGET_EXT;
-use crate::error::{AgetError, Result};
+use crate::{
+    chunk::RangePart,
+    common::AGET_EXT,
+    error::{AgetError, Result},
+};
 
 pub struct TaskInfo {
     pub path: String,
@@ -133,11 +137,7 @@ impl File {
         }
     }
 
-    pub fn write(
-        &mut self,
-        buf: &[u8],
-        seek: Option<SeekFrom>,
-    ) -> Result<usize, AgetError> {
+    pub fn write(&mut self, buf: &[u8], seek: Option<SeekFrom>) -> Result<usize, AgetError> {
         if let Some(seek) = seek {
             self.seek(seek)?;
         }
@@ -145,11 +145,7 @@ impl File {
         Ok(s)
     }
 
-    pub fn read(
-        &mut self,
-        buf: &mut [u8],
-        seek: Option<SeekFrom>,
-    ) -> Result<usize, AgetError> {
+    pub fn read(&mut self, buf: &mut [u8], seek: Option<SeekFrom>) -> Result<usize, AgetError> {
         if let Some(seek) = seek {
             self.seek(seek)?;
         }
@@ -321,10 +317,7 @@ impl AgetFile {
         Ok(gaps)
     }
 
-    pub fn write_content_length(
-        &mut self,
-        content_length: u64,
-    ) -> Result<(), AgetError> {
+    pub fn write_content_length(&mut self, content_length: u64) -> Result<(), AgetError> {
         let buf = u64_to_u8x8(content_length);
         self.inner.write(&buf, Some(SeekFrom::Start(0)))?;
         Ok(())
@@ -362,7 +355,8 @@ pub fn u8x8_to_u64(u8x8: &[u8; 8]) -> u64 {
     u64::from_be_bytes(*u8x8)
 }
 
-/// Return the memory representation of this integer as a byte array in big-endian (network) byte order.
+/// Return the memory representation of this integer as a byte array in big-endian (network) byte
+/// order.
 pub fn u64_to_u8x8(u: u64) -> [u8; 8] {
     u.to_be_bytes()
 }

@@ -1,15 +1,16 @@
-use std::env;
-use std::path::Path;
+use std::{env, path::Path};
 
 use actix_web::http::Uri;
 #[cfg(windows)]
 use ansi_term::enable_ansi_support;
 use clap::ArgMatches;
 
-use crate::clap_app::build_app;
-use crate::common::AGET_EXT;
-use crate::error::{ArgError, Result};
-use crate::util::LiteralSize;
+use crate::{
+    clap_app::build_app,
+    common::AGET_EXT,
+    error::{ArgError, Result},
+    util::LiteralSize,
+};
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -136,25 +137,21 @@ impl App {
         };
 
         // concurrency
-        let concurrency = if let Some(concurrency) = self.matches.value_of("concurrency")
-        {
+        let concurrency = if let Some(concurrency) = self.matches.value_of("concurrency") {
             concurrency.parse::<u64>()?
         } else {
             10
         };
 
         // chunk length
-        let chunk_length =
-            if let Some(chunk_length) = self.matches.value_of("chunk-length") {
-                chunk_length.literal_size()?
-            } else {
-                // 500k
-                1024 * 500
-            };
+        let chunk_length = if let Some(chunk_length) = self.matches.value_of("chunk-length") {
+            chunk_length.literal_size()?
+        } else {
+            1024 * 500 // 500k
+        };
 
         // maximum retries
-        let max_retries = if let Some(max_retries) = self.matches.value_of("max_retries")
-        {
+        let max_retries = if let Some(max_retries) = self.matches.value_of("max_retries") {
             max_retries.parse::<u32>()?
         } else {
             5

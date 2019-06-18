@@ -1,11 +1,14 @@
-use std::io::Write;
-use std::io::{stdout, Stdout};
+use std::io::{stdout, Stdout, Write};
 
-use ansi_term::Colour::{Blue, Cyan, Green, Red, Yellow};
-use ansi_term::Style;
+use ansi_term::{
+    Colour::{Blue, Cyan, Green, Red, Yellow},
+    Style,
+};
 
-use crate::error::{AgetError, Result};
-use crate::util::{terminal_width, SizeOfFmt, TimeOfFmt};
+use crate::{
+    error::{AgetError, Result},
+    util::{terminal_width, SizeOfFmt, TimeOfFmt},
+};
 
 pub struct Printer {
     colors: Colors,

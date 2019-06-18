@@ -1,11 +1,8 @@
-use std::io::Error as IoError;
-use std::num;
-use std::{fmt, result};
+use std::{fmt, io::Error as IoError, num, result};
 
 use failure::{self, Backtrace, Compat, Fail};
 
-use actix_web;
-use actix_web::http;
+use actix_web::{self, http};
 
 pub type Result<T, E = Error> = result::Result<T, E>;
 

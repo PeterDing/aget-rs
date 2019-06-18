@@ -1,9 +1,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use std::process::exit;
-use std::thread;
-use std::time;
+use std::{process::exit, thread, time};
 
 use futures::Future;
 
@@ -23,9 +21,11 @@ mod request;
 mod store;
 mod task;
 
-use crate::app::App;
-use crate::core::CoreProcess;
-use crate::util::{DEBUG, QUIET};
+use crate::{
+    app::App,
+    core::CoreProcess,
+    util::{DEBUG, QUIET},
+};
 
 static mut SUCCESS: bool = false;
 

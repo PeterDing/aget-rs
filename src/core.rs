@@ -1,10 +1,14 @@
-use std::cmp::min;
-use std::io::SeekFrom;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    cmp::min,
+    io::SeekFrom,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use futures::sync::mpsc::{channel, Receiver};
-use futures::{try_ready, Async, Future, Poll, Stream};
+use futures::{
+    sync::mpsc::{channel, Receiver},
+    try_ready, Async, Future, Poll, Stream,
+};
 
 use tokio::timer;
 
@@ -13,14 +17,16 @@ use actix_web::client::ClientConnector;
 
 use bytes::Bytes;
 
-use crate::app::Config;
-use crate::chunk::{make_range_chunks, RangePart, RangeStack};
-use crate::error::{AgetError, Error, NetError, Result};
-use crate::printer::Printer;
-use crate::request::{AgetRequestOptions, ContentLength, ContentLengthItem, Redirect};
-use crate::store::{AgetFile, File, TaskInfo};
-use crate::task::RequestTask;
-use crate::util::QUIET;
+use crate::{
+    app::Config,
+    chunk::{make_range_chunks, RangePart, RangeStack},
+    error::{AgetError, Error, NetError, Result},
+    printer::Printer,
+    request::{AgetRequestOptions, ContentLength, ContentLengthItem, Redirect},
+    store::{AgetFile, File, TaskInfo},
+    task::RequestTask,
+    util::QUIET,
+};
 
 enum InnerState {
     Redirect,
@@ -54,8 +60,7 @@ impl CoreProcess {
             .map(AsRef::as_ref)
             .collect::<Vec<&str>>();
         let data = config.data.as_ref().map(AsRef::as_ref);
-        let options =
-            AgetRequestOptions::new(&config.uri, &config.method, headers, data)?;
+        let options = AgetRequestOptions::new(&config.uri, &config.method, headers, data)?;
 
         Ok(CoreProcess {
             config,
@@ -82,8 +87,7 @@ impl CoreProcess {
 
     fn make_content_length(&mut self) -> &mut Self {
         debug!("Make ContentLength task");
-        let content_length =
-            ContentLength::new(self.options.clone(), self.connector.clone());
+        let content_length = ContentLength::new(self.options.clone(), self.connector.clone());
         self.content_length = Some(content_length);
         self
     }
@@ -94,8 +98,10 @@ impl CoreProcess {
         if aget_file.exists() {
             aget_file.open()?;
             if content_length != aget_file.content_length()? {
-                debug!("!! the content length that response returned isn't equal of aget file",
-                       format!("{} != {}", content_length, aget_file.content_length()?));
+                debug!(
+                    "!! the content length that response returned isn't equal of aget file",
+                    format!("{} != {}", content_length, aget_file.content_length()?)
+                );
                 return Err(AgetError::ContentLengthIsNotConsistent.into());
             }
         }
@@ -202,19 +208,16 @@ impl Future for CoreProcess {
                 InnerState::Task => {
                     if let Some(ref mut range_stack) = self.range_stack {
                         let is_concurrent = self.options.is_concurrent();
-                        let (sender, receiver) = channel::<(RangePart, Bytes)>(
-                            (self.config.concurrency + 1) as usize,
-                        );
+                        let (sender, receiver) =
+                            channel::<(RangePart, Bytes)>((self.config.concurrency + 1) as usize);
 
                         debug!("Spawn StreamHander");
-                        let stream_header = StreamHander::new(
-                            &self.config.path,
-                            receiver,
-                            !is_concurrent,
-                        )?
-                        .map(|_| {
-                            System::current().stop();
-                        });
+                        let stream_header =
+                            StreamHander::new(&self.config.path, receiver, !is_concurrent)?.map(
+                                |_| {
+                                    System::current().stop();
+                                },
+                            );
                         spawn(stream_header);
 
                         let concurrency = if is_concurrent {

@@ -5,11 +5,12 @@ use clap::crate_version;
 use futures::{try_ready, Async, Future, Poll};
 
 use actix::Addr;
-use actix_web::client::{ClientConnector, ClientRequest, ClientResponse};
-use actix_web::{http, HttpMessage};
+use actix_web::{
+    client::{ClientConnector, ClientRequest, ClientResponse},
+    http, HttpMessage,
+};
 
-use http::header;
-use http::{Method, Uri};
+use http::{header, Method, Uri};
 
 use crate::error::{AgetError, NetError, Result};
 
@@ -129,10 +130,7 @@ pub struct Redirect {
 }
 
 impl Redirect {
-    pub fn new(
-        options: AgetRequestOptions,
-        connector: Addr<ClientConnector>,
-    ) -> Redirect {
+    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> Redirect {
         Redirect {
             options,
             connector,
@@ -213,10 +211,7 @@ pub struct ContentLength {
 }
 
 impl ContentLength {
-    pub fn new(
-        options: AgetRequestOptions,
-        connector: Addr<ClientConnector>,
-    ) -> ContentLength {
+    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> ContentLength {
         ContentLength {
             options,
             connector,
@@ -268,9 +263,7 @@ impl Future for ContentLength {
                             if let Ok(s) = h.to_str() {
                                 if let Some(index) = s.find("/") {
                                     if let Ok(length) = &s[index + 1..].parse::<u64>() {
-                                        return Ok(ContentLengthItem::RangeLength(
-                                            length.clone(),
-                                        ));
+                                        return Ok(ContentLengthItem::RangeLength(length.clone()));
                                     }
                                 }
                             }
@@ -279,9 +272,7 @@ impl Future for ContentLength {
                         if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
                             if let Ok(s) = h.to_str() {
                                 if let Ok(length) = s.parse::<u64>() {
-                                    return Ok(ContentLengthItem::DirectLength(
-                                        length.clone(),
-                                    ));
+                                    return Ok(ContentLengthItem::DirectLength(length.clone()));
                                 }
                             }
                         }
