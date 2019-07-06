@@ -5,6 +5,8 @@ use actix_web::http::Uri;
 use ansi_term::enable_ansi_support;
 use clap::ArgMatches;
 
+use percent_encoding::percent_decode;
+
 use crate::{
     clap_app::build_app,
     common::AGET_EXT,
@@ -88,7 +90,10 @@ impl App {
             let uri = uri.parse::<Uri>()?;
             let path = Path::new(uri.path());
             if let Some(file_name) = path.file_name() {
-                file_name.to_str().unwrap().to_string()
+                percent_decode(file_name.to_str().unwrap().as_bytes())
+                    .decode_utf8()
+                    .unwrap()
+                    .to_string()
             } else {
                 return Err(ArgError::NoFilename);
             }
