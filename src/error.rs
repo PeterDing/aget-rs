@@ -7,7 +7,7 @@ use actix_web::{self, http};
 pub type Result<T, E = Error> = result::Result<T, E>;
 
 pub struct Error {
-    cause: Box<AgetFail>,
+    cause: Box<dyn AgetFail>,
     backtrace: Option<Backtrace>,
 }
 
