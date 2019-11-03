@@ -48,13 +48,13 @@ impl<T: AgetFail> From<T> for Error {
     }
 }
 
-impl<T> AgetFail for Compat<T> where T: fmt::Display + fmt::Debug + Sync + Send + 'static {}
-
-impl From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Error {
-        err.compat().into()
-    }
-}
+// impl<T> AgetFail for Compat<T> where T: fmt::Display + fmt::Debug + Sync + Send + 'static {}
+//
+// impl From<failure::Error> for Error {
+//     fn from(err: failure::Error) -> Error {
+//         err.compat().into()
+//     }
+// }
 
 #[derive(Fail, Debug)]
 pub enum ArgError {
@@ -150,12 +150,12 @@ impl From<actix_web::Error> for NetError {
 
 // impl<T> From<T> for NetError
 // where
-// T: actix_web::error::ResponseError,
+//     T: actix_web::error::ResponseError,
 // {
-// fn from(err: T) -> NetError {
-// let cause = err.as_fail();
-// NetError::ActixError
-// }
+//     fn from(err: T) -> NetError {
+//         let cause = err.as_fail();
+//         NetError::ActixError
+//     }
 // }
 
 impl From<actix_web::client::SendRequestError> for NetError {
