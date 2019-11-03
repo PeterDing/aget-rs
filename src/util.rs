@@ -4,6 +4,8 @@ use actix_web::http::Uri;
 
 use term_size::dimensions;
 
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
+
 use crate::error::{AgetError, ArgError, Result};
 
 pub trait FindFilename {
@@ -136,4 +138,15 @@ macro_rules! debug {
             }
         }
     };
+}
+
+const FRAGMENT: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .remove(b'?')
+    .remove(b'/')
+    .remove(b':')
+    .remove(b'=');
+
+pub fn escape_nonascii(target: &str) -> String {
+    utf8_percent_encode(target, FRAGMENT).to_string()
 }

@@ -11,7 +11,7 @@ use crate::{
     clap_app::build_app,
     common::AGET_EXT,
     error::{ArgError, Result},
-    util::LiteralSize,
+    util::{escape_nonascii, LiteralSize},
 };
 
 #[derive(Debug, Clone)]
@@ -81,13 +81,13 @@ impl App {
 
     pub fn config(&self) -> Result<Config, ArgError> {
         // uri
-        let uri = self.matches.value_of("URL").unwrap();
+        let uri = self.matches.value_of("URL").map(escape_nonascii).unwrap();
 
         // path
         let path = if let Some(path) = self.matches.value_of("out") {
             path.to_string()
         } else {
-            let uri = uri.parse::<Uri>()?;
+            let uri = &uri.parse::<Uri>()?;
             let path = Path::new(uri.path());
             if let Some(file_name) = path.file_name() {
                 percent_decode(file_name.to_str().unwrap().as_bytes())
@@ -98,8 +98,6 @@ impl App {
                 return Err(ArgError::NoFilename);
             }
         };
-
-        let uri = uri.to_string();
 
         // check status of task
         let path_ = Path::new(&path);
@@ -186,4 +184,10 @@ impl App {
             quiet,
         ))
     }
+}
+
+fn test_escape_nonascii() {
+    let s = ":ss/s  来；】/ 【【 ? 是的 & 水电费=45 进来看";
+    println!("{}", s);
+    println!("{}", escape_nonascii(s));
 }
