@@ -1,11 +1,13 @@
 use std::{env, path::Path};
 
-use actix_web::http::Uri;
 #[cfg(windows)]
 use ansi_term::enable_ansi_support;
+
 use clap::ArgMatches;
 
 use percent_encoding::percent_decode;
+
+use awc::http::Uri;
 
 use crate::{
     clap_app::build_app,

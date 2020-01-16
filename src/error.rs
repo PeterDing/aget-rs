@@ -1,8 +1,17 @@
 use std::{fmt, io::Error as IoError, num, result};
 
-use failure::{self, Backtrace, Compat, Fail};
+use failure::{self, Backtrace, Fail};
+use futures::channel::mpsc::SendError;
 
-use actix_web::{self, http};
+use awc::{
+    self,
+    error::SendRequestError,
+    http,
+    http::{
+        header::{InvalidHeaderName, InvalidHeaderValue, ToStrError},
+        uri::InvalidUri,
+    },
+};
 
 pub type Result<T, E = Error> = result::Result<T, E>;
 
@@ -47,14 +56,6 @@ impl<T: AgetFail> From<T> for Error {
         }
     }
 }
-
-// impl<T> AgetFail for Compat<T> where T: fmt::Display + fmt::Debug + Sync + Send + 'static {}
-//
-// impl From<failure::Error> for Error {
-//     fn from(err: failure::Error) -> Error {
-//         err.compat().into()
-//     }
-// }
 
 #[derive(Fail, Debug)]
 pub enum ArgError {
@@ -134,6 +135,8 @@ pub enum NetError {
     NoContentLength,
     #[fail(display = "uri is invalid: {}", _0)]
     InvaildUri(String),
+    #[fail(display = "header is invalid: {}", _0)]
+    InvaildHeader(String),
     #[fail(display = "response status code is: {}", _0)]
     Unsuccess(u16),
     #[fail(display = "Redirect to: {}", _0)]
@@ -142,36 +145,38 @@ pub enum NetError {
 
 impl AgetFail for NetError {}
 
-impl From<actix_web::Error> for NetError {
-    fn from(err: actix_web::Error) -> NetError {
+impl From<SendRequestError> for NetError {
+    fn from(err: SendRequestError) -> NetError {
         NetError::ActixError(format!("{}", err))
     }
 }
 
-// impl<T> From<T> for NetError
-// where
-//     T: actix_web::error::ResponseError,
-// {
-//     fn from(err: T) -> NetError {
-//         let cause = err.as_fail();
-//         NetError::ActixError
-//     }
-// }
-
-impl From<actix_web::client::SendRequestError> for NetError {
-    fn from(err: actix_web::client::SendRequestError) -> NetError {
+impl From<ToStrError> for NetError {
+    fn from(err: ToStrError) -> NetError {
         NetError::ActixError(format!("{}", err))
     }
 }
 
-impl From<actix_web::error::PayloadError> for NetError {
-    fn from(err: actix_web::error::PayloadError) -> NetError {
-        NetError::ActixError(format!("{}", err))
-    }
-}
-
-impl From<http::uri::InvalidUri> for NetError {
-    fn from(err: http::uri::InvalidUri) -> NetError {
+impl From<InvalidUri> for NetError {
+    fn from(err: InvalidUri) -> NetError {
         NetError::InvaildUri(format!("{}", err))
+    }
+}
+
+impl From<InvalidHeaderName> for NetError {
+    fn from(err: InvalidHeaderName) -> NetError {
+        NetError::InvaildHeader(format!("{}", err))
+    }
+}
+
+impl From<InvalidHeaderValue> for NetError {
+    fn from(err: InvalidHeaderValue) -> NetError {
+        NetError::InvaildHeader(format!("{}", err))
+    }
+}
+
+impl From<SendError> for NetError {
+    fn from(err: SendError) -> NetError {
+        NetError::ActixError(format!("{}", err))
     }
 }

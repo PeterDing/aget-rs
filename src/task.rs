@@ -1,191 +1,103 @@
-use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use actix::Addr;
-use actix_web::{
-    client::{ClientConnector, ClientResponse},
-    http, HttpMessage,
-};
+use awc::http::header;
 
-use futures::{sync::mpsc::Sender, Async, Future, Poll, Sink, Stream};
-
-use http::header;
+use futures::{channel::mpsc::Sender, stream::StreamExt};
+use futures_util::sink::SinkExt;
 
 use bytes::Bytes;
 
 use crate::{
-    chunk::{AtomicRangStack, RangePart, RangeStack},
+    chunk::{RangePart, RangeStack},
     error::NetError,
     request::AgetRequestOptions,
 };
 
 pub struct RequestTask {
-    options: AgetRequestOptions,
-    connector: Addr<ClientConnector>,
-    request: Option<Box<dyn Future<Item = (), Error = NetError>>>,
     range_stack: RangeStack,
-    range: AtomicRangStack,
     sender: Sender<(RangePart, Bytes)>,
 }
 
 impl RequestTask {
-    pub fn new(
-        range_stack: RangeStack,
-        options: AgetRequestOptions,
-        connector: Addr<ClientConnector>,
-        sender: Sender<(RangePart, Bytes)>,
-    ) -> RequestTask {
+    pub fn new(range_stack: RangeStack, sender: Sender<(RangePart, Bytes)>) -> RequestTask {
         RequestTask {
-            options,
-            connector,
-            request: None,
             range_stack,
-            range: Arc::new(Mutex::new(RangePart::new(0, 0))),
             sender,
         }
     }
 
-    fn is_concurrent(&self) -> bool {
-        self.options.is_concurrent()
-    }
-
     fn pop_range(&mut self) -> Option<RangePart> {
-        let mut stack = self.range_stack.lock().unwrap();
+        let mut stack = self.range_stack.borrow_mut();
         (*stack).pop()
     }
 
     fn push_range(&mut self, range: RangePart) {
-        let mut stack = self.range_stack.lock().unwrap();
+        let mut stack = self.range_stack.borrow_mut();
         (*stack).push(range);
     }
 
-    fn make_request(&mut self) -> Result<(), NetError> {
-        if let Some(range) = self.pop_range() {
-            let timeout = if self.is_concurrent() {
-                60
+    pub async fn run(&mut self, mut options: AgetRequestOptions) -> Result<(), NetError> {
+        while let Some(range) = self.pop_range() {
+            let timeout = if options.is_concurrent() {
+                Duration::from_secs(60)
             } else {
-                10 * 24 * 60 * 60 // 10 days
+                Duration::from_secs(10 * 24 * 60 * 60) // 10 days
             };
 
-            let request = self.options.build(self.connector.clone(), timeout);
-
-            if let Err(err) = request {
-                print_err!("build request fails", err);
-                return Err(err);
-            }
-
-            let mut request = request.unwrap();
-
-            if self.is_concurrent() {
-                request.headers_mut().insert(
+            let mut client_request = options.build()?.timeout(timeout);
+            if options.is_concurrent() {
+                client_request.headers_mut().insert(
                     header::RANGE,
-                    format!("bytes={}-{}", range.start, range.end)
-                        .parse()
-                        .unwrap(),
+                    format!("bytes={}-{}", range.start, range.end).parse()?,
                 );
             }
-
-            self.range = Arc::new(Mutex::new(range));
-            let range = self.range.clone();
-
-            let sender = self.sender.clone();
-
-            let request = request
-                .send()
-                .map_err(|err| {
-                    // print_err!("request fails", err);
-                    // debug!(format!("request error: {:?}", err));
-                    NetError::ActixError(format!("{}", err))
-                })
-                .and_then(|resp| {
-                    if resp.status().is_redirection() {
-                        if let Some(h) = resp.headers().get(header::LOCATION) {
-                            if let Ok(s) = h.to_str() {
-                                return Err(NetError::Redirect(s.to_string()));
-                            }
-                        }
-                    }
-                    Ok(resp)
-                })
-                .and_then(|resp| {
-                    if !resp.status().is_success() {
-                        Err(NetError::Unsuccess(resp.status().as_u16()))
-                    } else {
-                        Ok(resp)
-                    }
-                })
-                .and_then(move |resp: ClientResponse| {
-                    resp.payload()
-                        .from_err()
-                        .fold(sender.clone(), move |_, chunk| {
-                            let len = chunk.len() as u64;
-                            let mut range = range.lock().unwrap();
-                            let start = range.start;
-                            let end = start + len;
-                            range.start = end;
-
-                            sender
-                                .clone()
-                                // `send` takes self
-                                //
-                                // the sended RangePart is a close interval as header
-                                // `Range`
-                                .send((RangePart::new(start, end - 1), chunk))
-                                .map_err(|err| {
-                                    print_err!("sender fails", err);
-                                    NetError::ActixError(format!("{}", err))
-                                })
-                            // Ok::<_, NetError>(())
-                        })
-                })
-                .map(|_| ());
-
-            self.request = Some(Box::new(request));
-        } else {
-            self.request = None;
-        }
-        return Ok(());
-    }
-}
-
-impl Future for RequestTask {
-    type Item = ();
-    type Error = NetError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            if let Some(ref mut request) = self.request {
-                match request.poll() {
-                    Ok(Async::Ready(t)) => (),
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(err) => {
-                        // handle redirect
-                        if let NetError::Redirect(uri) = err {
-                            self.options.set_uri(&uri);
-                            let range = self.range.clone();
-                            let range = range.lock().unwrap();
-                            self.push_range(range.clone());
-                        } else if self.is_concurrent() {
-                            debug!("request error", err);
-                            let range = self.range.clone();
-                            let range = range.lock().unwrap();
-                            self.push_range(range.clone());
-                        } else {
-                            // return Err(NetError::ActixError(format!("{}", err)));
-                            return Err(err);
-                        }
-                    }
-                }
-                self.request = None;
+            let resp = if let Some(body) = options.body() {
+                client_request.send_body(body).await
             } else {
-                match self.make_request() {
-                    Ok(_) => {
-                        if self.request.is_none() {
-                            return Ok(Async::Ready(()));
-                        }
-                    }
-                    Err(err) => return Err(err),
+                client_request.send().await
+            };
+
+            if resp.is_err() {
+                self.push_range(range);
+                continue;
+            }
+
+            let mut resp = resp.unwrap();
+
+            let status = resp.status();
+
+            // handle redirect
+            if status.is_redirection() {
+                if let Some(location) = resp.headers().get(header::LOCATION) {
+                    options.set_uri(location.to_str()?);
+                }
+                self.push_range(range);
+                continue;
+            }
+
+            if !status.is_success() {
+                debug!("request error", status);
+                self.push_range(range);
+                continue;
+            }
+
+            let mut range = range.clone();
+            while let Some(chunk) = resp.next().await {
+                if let Ok(chunk) = chunk {
+                    let len = chunk.len() as u64;
+                    let start = range.start;
+                    let end = start + len;
+                    range.start = end;
+
+                    let mut sender = self.sender.clone();
+                    // the sended RangePart is a close interval as header `Range`
+                    sender.send((RangePart::new(start, end - 1), chunk)).await?;
+                } else {
+                    self.push_range(range);
+                    break;
                 }
             }
         }
+        Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub struct RangePart {
@@ -16,8 +16,7 @@ impl RangePart {
     }
 }
 
-pub type RangeStack = Arc<Mutex<Vec<RangePart>>>;
-pub type AtomicRangStack = Arc<Mutex<RangePart>>;
+pub type RangeStack = Rc<RefCell<Vec<RangePart>>>;
 
 /// Split a close `interval` to many piece chunk that its size is equal to `chunk_length`,
 /// but the last piece size can be less then `chunk_length`.
