@@ -1,59 +1,35 @@
-use std::{
-    cmp::min,
-    io::SeekFrom,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{cell::RefCell, cmp::min, io::SeekFrom, rc::Rc, time::Duration};
 
 use futures::{
-    sync::mpsc::{channel, Receiver},
-    try_ready, Async, Future, Poll, Stream,
+    channel::mpsc::{channel, Receiver},
+    select,
+    stream::StreamExt,
 };
 
-use tokio::timer;
-
-use actix::{spawn, Actor, Addr, System};
-use actix_web::client::ClientConnector;
-
+use actix_rt::{spawn, time::interval, System};
 use bytes::Bytes;
 
 use crate::{
     app::Config,
     chunk::{make_range_chunks, RangePart, RangeStack},
-    error::{AgetError, Error, NetError, Result},
+    error::{AgetError, NetError, Result},
     printer::Printer,
-    request::{AgetRequestOptions, ContentLength, ContentLengthItem, Redirect},
+    request::{get_content_length, get_redirect_uri, AgetRequestOptions, ContentLengthItem},
     store::{AgetFile, File, TaskInfo},
     task::RequestTask,
     util::QUIET,
 };
 
-enum InnerState {
-    Redirect,
-    ContentLength,
-    Task,
-    End,
-}
-
 pub struct CoreProcess {
     config: Config,
-    state: InnerState,
-    connector: Addr<ClientConnector>,
     options: AgetRequestOptions,
-    range_stack: Option<RangeStack>,
+    range_stack: RangeStack,
     // the length of range_stack
     range_count: u64,
-    redirect: Option<Redirect>,
-    content_length: Option<ContentLength>,
 }
 
 impl CoreProcess {
     pub fn new(config: Config) -> Result<CoreProcess> {
-        let connector = ClientConnector::default()
-            .limit(0) // no limit simultaneous connections.
-            .conn_keep_alive(Duration::from_secs(10))
-            .conn_lifetime(Duration::from_secs(60 * 10))
-            .start();
         let headers = &config
             .headers
             .iter()
@@ -64,32 +40,10 @@ impl CoreProcess {
 
         Ok(CoreProcess {
             config,
-            state: InnerState::Redirect,
-            connector,
             options,
-            range_stack: None,
+            range_stack: Rc::new(RefCell::new(vec![])),
             range_count: 1,
-            redirect: None,
-            content_length: None,
         })
-    }
-
-    fn set_connector(&mut self, connector: Addr<ClientConnector>) {
-        self.connector = connector;
-    }
-
-    fn make_redirect(&mut self) -> &mut Self {
-        debug!("Make Redirect task");
-        let redirect = Redirect::new(self.options.clone(), self.connector.clone());
-        self.redirect = Some(redirect);
-        self
-    }
-
-    fn make_content_length(&mut self) -> &mut Self {
-        debug!("Make ContentLength task");
-        let content_length = ContentLength::new(self.options.clone(), self.connector.clone());
-        self.content_length = Some(content_length);
-        self
     }
 
     fn check_content_length(&self, content_length: u64) -> Result<()> {
@@ -146,122 +100,83 @@ impl CoreProcess {
         self.range_count = range_stack.len() as u64;
 
         debug!("Range stack size", range_stack.len());
-        self.range_stack = Some(Arc::new(Mutex::new(range_stack)));
+        self.range_stack = Rc::new(RefCell::new(range_stack));
 
+        Ok(())
+    }
+
+    pub async fn run(&mut self) -> Result<()> {
+        // 1. Get redirected uri
+        debug!("Redirect task");
+        get_redirect_uri(&mut self.options).await?;
+
+        // 2. Get content length
+        debug!("ContentLength task");
+        let cn_item = get_content_length(&mut self.options).await?;
+        match cn_item {
+            ContentLengthItem::RangeLength(content_length) => {
+                self.check_content_length(content_length)?;
+                self.set_content_length(content_length)?;
+            }
+            ContentLengthItem::DirectLength(content_length) => {
+                self.set_content_length(content_length)?;
+                self.options.no_concurrency();
+
+                // Let connector to be always alive
+                self.options.reset_connector(10, 60, 0);
+            }
+            ContentLengthItem::NoLength => {
+                return Err(NetError::NoContentLength.into());
+            }
+        }
+        self.make_range_stack()?;
+
+        // 3. Spawn concurrent tasks
+        let is_concurrent = self.options.is_concurrent();
+        let (sender, receiver) =
+            channel::<(RangePart, Bytes)>((self.config.concurrency + 1) as usize);
+        let concurrency = if is_concurrent {
+            self.config.concurrency
+        } else {
+            1
+        };
+        debug!("Spawn RequestTasks", concurrency);
+
+        for i in 0..(min(self.config.concurrency, self.range_count)) {
+            debug!("RequestTask ", i);
+            let range_stack = self.range_stack.clone();
+            let sender_ = sender.clone();
+            let options = self.options.clone();
+            let task = async {
+                let is_concurrent = options.is_concurrent();
+                let mut request_task = RequestTask::new(range_stack, sender_);
+                let result = request_task.run(options).await;
+                if let Err(err) = result {
+                    print_err!("RequestTask fails", err);
+                    if !is_concurrent {
+                        // Exit process when the only one request task fails
+                        System::current().stop();
+                    }
+                }
+            };
+            spawn(task);
+        }
+
+        // 4. Wait stream handler
+        debug!("Start StreamHander");
+        let stream_header = StreamHander::new(&self.config.path, !is_concurrent);
+        if stream_header.is_err() {
+            System::current().stop();
+        }
+        let stream_header = stream_header.unwrap();
+        stream_header.run(receiver).await;
+
+        debug!("CoreProcess done");
         Ok(())
     }
 }
 
-impl Future for CoreProcess {
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            match self.state {
-                InnerState::Redirect => {
-                    if let Some(ref mut redirect) = self.redirect {
-                        let new_uri = try_ready!(redirect.poll());
-                        self.options.set_uri(new_uri.as_str());
-                        self.state = InnerState::ContentLength;
-                        self.redirect = None;
-                    } else {
-                        self.make_redirect();
-                    }
-                }
-                InnerState::ContentLength => {
-                    if let Some(ref mut content_length) = self.content_length {
-                        let content_length = try_ready!(content_length.poll());
-
-                        debug!("ContentLengthItem", content_length);
-
-                        match content_length {
-                            ContentLengthItem::RangeLength(content_length) => {
-                                self.check_content_length(content_length)?;
-                                self.set_content_length(content_length)?;
-                            }
-                            ContentLengthItem::DirectLength(content_length) => {
-                                self.set_content_length(content_length)?;
-                                self.options.no_concurrency();
-
-                                // connector is always alive
-                                let connector = ClientConnector::default()
-                                    .limit(0) // no limit simultaneous connections.
-                                    .conn_keep_alive(Duration::from_secs(10))
-                                    .conn_lifetime(Duration::from_secs(0))
-                                    .start();
-
-                                self.set_connector(connector);
-                            }
-                            ContentLengthItem::NoLength => {
-                                return Err(NetError::NoContentLength.into());
-                            }
-                        }
-
-                        self.make_range_stack()?;
-                        self.state = InnerState::Task;
-                        self.content_length = None;
-                    } else {
-                        self.make_content_length();
-                    }
-                }
-                InnerState::Task => {
-                    if let Some(ref mut range_stack) = self.range_stack {
-                        let is_concurrent = self.options.is_concurrent();
-                        let (sender, receiver) =
-                            channel::<(RangePart, Bytes)>((self.config.concurrency + 1) as usize);
-
-                        debug!("Spawn StreamHander");
-                        let stream_header =
-                            StreamHander::new(&self.config.path, receiver, !is_concurrent)?.map(
-                                |_| {
-                                    System::current().stop();
-                                },
-                            );
-                        spawn(stream_header);
-
-                        let concurrency = if is_concurrent {
-                            self.config.concurrency
-                        } else {
-                            1
-                        };
-                        debug!("Spawn RequestTasks", concurrency);
-                        for _ in 0..(min(self.config.concurrency, self.range_count)) {
-                            let task = RequestTask::new(
-                                range_stack.clone(),
-                                self.options.clone(),
-                                self.connector.clone(),
-                                sender.clone(),
-                            )
-                            .map_err(move |err| {
-                                print_err!("RequestTask fails", err);
-                                if !is_concurrent {
-                                    // Exit process when the only one request task fails
-                                    System::current().stop();
-                                }
-                            });
-                            spawn(task);
-                        }
-                    } else {
-                        unreachable!("Bug: No RangeStack");
-                    }
-                    self.state = InnerState::End;
-                }
-                InnerState::End => {
-                    return Ok(Async::Ready(()));
-                }
-            }
-        }
-    }
-}
-
-enum Item {
-    Value((RangePart, Bytes)),
-    Tick,
-}
-
 struct StreamHander {
-    stream: Box<dyn Stream<Item = Item, Error = Error>>,
     file: File,
     aget_file: AgetFile,
     task_info: TaskInfo,
@@ -270,11 +185,7 @@ struct StreamHander {
 }
 
 impl StreamHander {
-    fn new(
-        path: &str,
-        receiver: Receiver<(RangePart, Bytes)>,
-        no_record: bool,
-    ) -> Result<StreamHander, AgetError> {
+    fn new(path: &str, no_record: bool) -> Result<StreamHander, AgetError> {
         let task_info = TaskInfo::new(path)?;
 
         let mut file = File::new(path, false)?;
@@ -282,18 +193,8 @@ impl StreamHander {
         let mut aget_file = AgetFile::new(path)?;
         aget_file.open()?;
 
-        let tick = timer::Interval::new_interval(Duration::from_secs(2))
-            .map_err(|err| AgetError::Bug(format!("tick error: {}", err)))
-            .map(|_| Item::Tick);
-        let stream = receiver
-            .map_err(|_| AgetError::Bug("receiver error".to_owned()))
-            .map(Item::Value)
-            .select(tick)
-            .from_err();
-
         let printer = Printer::new();
         let mut handler = StreamHander {
-            stream: Box::new(stream),
             file,
             aget_file,
             task_info,
@@ -354,63 +255,48 @@ impl StreamHander {
         self.aget_file.remove()?;
         Ok(())
     }
-}
 
-impl Future for StreamHander {
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    pub async fn run(mut self, receiver: Receiver<(RangePart, Bytes)>) {
+        debug!("StreamHander run");
+        let mut tick = interval(Duration::from_secs(1)).fuse();
+        let mut receiver = receiver.fuse();
         loop {
-            match self.stream.poll() {
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(item)) => {
-                    match item {
-                        Some(Item::Value((range_part, buf))) => {
-                            let interval_length = range_part.length();
+            select! {
+                item = receiver.next() => {
+                    if let Some((range, chunk)) = item {
+                        let interval_length = range.length();
 
-                            // write buf
-                            if let Err(err) = self
-                                .file
-                                .write(&buf[..], Some(SeekFrom::Start(range_part.start)))
-                            {
-                                print_err!("write chunk to file fails", err);
-                                return Err(());
-                            }
+                        // write buf
+                        if let Err(err) = self
+                            .file
+                            .write(&chunk[..], Some(SeekFrom::Start(range.start)))
+                        {
+                            print_err!("write chunk to file fails", err);
+                        }
 
-                            // write range_part
-                            self.record_range(range_part)?;
+                        // write range_part
+                        self.record_range(range);
 
-                            // update `task_info`
-                            self.task_info.add_completed(interval_length);
-                        }
-                        Some(Item::Tick) => {
-                            if let Err(err) = self.print_process() {
-                                print_err!("print process fails", err);
-                                return Err(());
-                            }
-                            self.task_info.clean_interval();
-                            if self.task_info.remains() == 0 {
-                                if let Err(err) = self.print_process() {
-                                    print_err!("print process fails", err);
-                                    return Err(());
-                                }
-                                if let Err(err) = self.teardown() {
-                                    print_err!("teardown stream handler fails", err);
-                                    return Err(());
-                                }
-                                return Ok(Async::Ready(()));
-                            }
-                        }
-                        // never reach here !!!
-                        None => {
-                            return Ok(Async::Ready(()));
-                        }
+                        // update `task_info`
+                        self.task_info.add_completed(interval_length);
+                    } else {
+                        break;
                     }
                 }
-                Err(err) => {
-                    print_err!("stream error", err);
-                    return Err(());
+                _ = tick.next() => {
+                    if let Err(err) = self.print_process() {
+                        print_err!("print process fails", err);
+                    }
+                    self.task_info.clean_interval();
+                    if self.task_info.remains() == 0 {
+                        if let Err(err) = self.print_process() {
+                            print_err!("print process fails", err);
+                        }
+                        if let Err(err) = self.teardown() {
+                            print_err!("teardown stream handler fails", err);
+                        }
+                        break;
+                    }
                 }
             }
         }

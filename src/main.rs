@@ -1,11 +1,10 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
+#![recursion_limit = "256"]
 
 use std::{process::exit, thread, time};
 
-use futures::Future;
-
-use actix::{spawn, System};
+use actix_rt::{spawn, System};
 
 #[macro_use]
 mod util;
@@ -52,35 +51,39 @@ fn main() {
                 let sys = System::new("Aget");
 
                 debug!("Make CoreProcess task");
-                let core_process = CoreProcess::new(config.clone());
 
-                match core_process {
-                    Ok(core_fut) => {
-                        spawn(
-                            core_fut
-                                .map_err(|err| {
-                                    print_err!("core_fut fails", err);
-                                    System::current().stop();
-                                })
-                                .map(|_| unsafe {
-                                    SUCCESS = true;
-                                }),
-                        );
-                    }
-                    Err(err) => {
-                        print_err!("core_fut error", err);
+                let config_ = config.clone();
+                spawn(async move {
+                    let core_process = CoreProcess::new(config_);
+                    if let Ok(mut core_fut) = core_process {
+                        let result = core_fut.run().await;
+                        if let Err(err) = result {
+                            print_err!("core_fut fails", err);
+                        } else {
+                            unsafe {
+                                SUCCESS = true;
+                            }
+                        }
+                    } else {
+                        print_err!("core_fut error", "");
                         exit(1);
                     }
-                }
+                    debug!("main done");
+                    System::current().stop();
+                });
 
-                sys.run();
-
-                // check task state
-                unsafe {
-                    if SUCCESS {
-                        return;
+                if let Err(err) = sys.run() {
+                    print_err!("System error", err);
+                } else {
+                    // check task state
+                    unsafe {
+                        if SUCCESS {
+                            break;
+                        }
                     }
                 }
+
+                debug!("!!! Can't be here");
             }
         }
         Err(err) => {

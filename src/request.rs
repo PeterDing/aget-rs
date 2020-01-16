@@ -1,16 +1,11 @@
 use std::time::Duration;
 
-use clap::crate_version;
-
-use futures::{try_ready, Async, Future, Poll};
-
-use actix::Addr;
-use actix_web::{
-    client::{ClientConnector, ClientRequest, ClientResponse},
-    http, HttpMessage,
+use awc::{
+    http::{header, Method, Uri},
+    Client, ClientBuilder, ClientRequest, Connector,
 };
 
-use http::{header, Method, Uri};
+use clap::crate_version;
 
 use crate::error::{AgetError, NetError, Result};
 
@@ -24,13 +19,14 @@ fn parse_header(raw: &str) -> Result<(&str, &str), AgetError> {
     Err(AgetError::HeaderParseError(raw.to_string()))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AgetRequestOptions {
     uri: String,
     method: Method,
     headers: Vec<(String, String)>,
     body: Option<String>,
     concurrent: bool,
+    client: Client,
 }
 
 impl AgetRequestOptions {
@@ -40,7 +36,7 @@ impl AgetRequestOptions {
         headers: &[&str],
         body: Option<&str>,
     ) -> Result<AgetRequestOptions, AgetError> {
-        let _method = match method.to_uppercase().as_str() {
+        let method = match method.to_uppercase().as_str() {
             "GET" => Method::GET,
             "POST" => Method::POST,
             _ => return Err(AgetError::UnsupportedMethod),
@@ -52,8 +48,16 @@ impl AgetRequestOptions {
             header_list.push((key.to_string(), value.to_string()));
         }
 
+        let connector = Connector::new()
+            .limit(0) // no limit simultaneous connections.
+            .timeout(Duration::from_secs(5)) // DNS timeout
+            .conn_keep_alive(Duration::from_secs(60))
+            .conn_lifetime(Duration::from_secs(0))
+            .finish();
+        let client = ClientBuilder::new().connector(connector).finish();
+
         Ok(AgetRequestOptions {
-            method: _method,
+            method,
             uri: uri.to_string(),
             headers: header_list,
             body: if let Some(body) = body {
@@ -62,46 +66,35 @@ impl AgetRequestOptions {
                 None
             },
             concurrent: true,
+            client,
         })
     }
 
-    pub fn build(
-        &self,
-        connector: Addr<ClientConnector>,
-        timeout: u64,
-    ) -> Result<ClientRequest, NetError> {
-        let mut builder = ClientRequest::build();
-        builder.with_connector(connector);
-        builder
-            .method(self.method.clone())
-            .uri(self.uri.clone())
-            .timeout(Duration::from_secs(timeout))
-            .no_default_headers();
-
-        for (ref key, ref val) in &self.headers {
-            builder.header(key.as_str(), val.as_str());
-        }
-
-        // set header `Host`
-        let uri = self.uri.parse::<Uri>()?;
-        if let Some(host) = uri.host() {
-            builder.set_header_if_none("Host", host);
-        } else {
-            return Err(NetError::InvaildUri(self.uri.to_string()));
-        }
-
+    pub fn build(&self) -> Result<ClientRequest, NetError> {
         // set user-agent if none
         let aget_ua = format!("aget/{}", crate_version!());
-        builder.set_header_if_none("User-Agent", aget_ua);
 
-        // set accept if none
-        builder.set_header_if_none("Accept", "*/*");
+        let uri = self.uri.parse::<Uri>()?;
+        let host = if let Some(host) = uri.host() {
+            host
+        } else {
+            return Err(NetError::InvaildUri(self.uri.to_string()));
+        };
 
-        if let Some(ref body) = self.body {
-            builder.body(body.clone())?;
+        let mut client_request = self
+            .client
+            .request(self.method.clone(), self.uri.clone())
+            .set_header_if_none("User-Agent", aget_ua) // set default user-agent
+            .set_header_if_none("Accept", "*/*") // set accept if none
+            .set_header_if_none("Host", host); // set header `Host`
+
+        for (ref key, ref val) in &self.headers {
+            client_request
+                .headers_mut()
+                .insert(key.as_str().parse()?, val.as_str().parse()?);
         }
-        let request = builder.finish()?;
-        Ok(request)
+
+        Ok(client_request)
     }
 
     pub fn uri(&self) -> String {
@@ -113,6 +106,10 @@ impl AgetRequestOptions {
         self
     }
 
+    pub fn body(&self) -> &Option<String> {
+        &self.body
+    }
+
     pub fn is_concurrent(&self) -> bool {
         self.concurrent
     }
@@ -121,78 +118,38 @@ impl AgetRequestOptions {
         self.concurrent = false;
         self
     }
-}
 
-pub struct Redirect {
-    options: AgetRequestOptions,
-    connector: Addr<ClientConnector>,
-    request: Option<Box<dyn Future<Item = Option<String>, Error = NetError>>>,
-}
-
-impl Redirect {
-    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> Redirect {
-        Redirect {
-            options,
-            connector,
-            request: None,
-        }
+    pub fn reset_connector(&mut self, timeout: u64, keep_alive: u64, lifetime: u64) -> &mut Self {
+        let connector = Connector::new()
+            .limit(0) // no limit simultaneous connections.
+            .timeout(Duration::from_secs(timeout)) // DNS timeout
+            .conn_keep_alive(Duration::from_secs(keep_alive))
+            .conn_lifetime(Duration::from_secs(lifetime))
+            .finish();
+        self.client = ClientBuilder::new().connector(connector).finish();
+        self
     }
 }
 
-impl Future for Redirect {
-    type Item = String;
-    type Error = NetError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            if let Some(ref mut request) = self.request {
-                let r = try_ready!(request.poll());
-                self.request = None;
-                if let Some(new_uri) = r {
-                    self.options.set_uri(&new_uri);
-                } else {
-                    return Ok(Async::Ready(self.options.uri()));
+// Get redirected uri and reset `AgetRequestOptions.uri`
+pub async fn get_redirect_uri(options: &mut AgetRequestOptions) -> Result<(), NetError> {
+    loop {
+        let client_request = options.build()?;
+        let resp = if let Some(body) = options.body() {
+            client_request.send_body(body).await?
+        } else {
+            client_request.send().await?
+        };
+        let status = resp.status();
+        if !(status.is_success() || status.is_redirection()) {
+            return Err(NetError::Unsuccess(status.as_u16()));
+        } else {
+            if status.is_redirection() {
+                if let Some(location) = resp.headers().get(header::LOCATION) {
+                    options.set_uri(location.to_str()?);
                 }
-            } else {
-                let request = self.options.build(self.connector.clone(), 100);
-
-                if let Err(err) = request {
-                    return Err(err);
-                }
-
-                let mut request = request.unwrap();
-                request
-                    .headers_mut()
-                    .insert(header::RANGE, "bytes=0-1".parse().unwrap());
-
-                let request = request
-                    .send()
-                    .map_err(|err| {
-                        print_err!("redirect error", err);
-                        NetError::ActixError(format!("{}", err))
-                    })
-                    .and_then(|resp: ClientResponse| {
-                        let status = resp.status();
-                        if !(status.is_success() || status.is_redirection()) {
-                            Err(NetError::Unsuccess(status.as_u16()))
-                        } else {
-                            Ok(resp)
-                        }
-                    })
-                    .and_then(|resp: ClientResponse| {
-                        debug!("Redirect response's headers", resp.headers());
-                        // debug!("Redirect response's body", &resp.body().wait().unwrap());
-
-                        if let Some(h) = resp.headers().get(header::LOCATION) {
-                            if let Ok(s) = h.to_str() {
-                                return Ok(Some(s.to_string()));
-                            }
-                        }
-                        Ok(None)
-                    });
-
-                self.request = Some(Box::new(request));
             }
+            return Ok(());
         }
     }
 }
@@ -204,89 +161,37 @@ pub enum ContentLengthItem {
     NoLength,
 }
 
-pub struct ContentLength {
-    options: AgetRequestOptions,
-    connector: Addr<ClientConnector>,
-    request: Option<Box<dyn Future<Item = ContentLengthItem, Error = NetError>>>,
-}
+pub async fn get_content_length(
+    options: &mut AgetRequestOptions,
+) -> Result<ContentLengthItem, NetError> {
+    let client_request = options.build()?.header(header::RANGE, "bytes=0-1");
+    let resp = if let Some(body) = options.body() {
+        client_request.send_body(body).await?
+    } else {
+        client_request.send().await?
+    };
 
-impl ContentLength {
-    pub fn new(options: AgetRequestOptions, connector: Addr<ClientConnector>) -> ContentLength {
-        ContentLength {
-            options,
-            connector,
-            request: None,
-        }
-    }
-}
-
-impl Future for ContentLength {
-    type Item = ContentLengthItem;
-    type Error = NetError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        loop {
-            if let Some(ref mut request) = self.request {
-                let length = try_ready!(request.poll());
-                self.request = None;
-                return Ok(Async::Ready(length));
-            } else {
-                let request = self.options.build(self.connector.clone(), 100);
-
-                if let Err(err) = request {
-                    return Err(err);
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(NetError::Unsuccess(status.as_u16()));
+    } else {
+        if let Some(h) = resp.headers().get(header::CONTENT_RANGE) {
+            if let Ok(s) = h.to_str() {
+                if let Some(index) = s.find("/") {
+                    if let Ok(length) = &s[index + 1..].parse::<u64>() {
+                        return Ok(ContentLengthItem::RangeLength(length.clone()));
+                    }
                 }
-
-                let mut request = request.unwrap();
-                request
-                    .headers_mut()
-                    .insert(header::RANGE, "bytes=0-1".parse().unwrap());
-
-                let request = request
-                    .send()
-                    .map_err(|err| {
-                        print_err!("content length request error", err);
-                        NetError::ActixError(format!("{}", err))
-                    })
-                    .and_then(|resp: ClientResponse| {
-                        if !resp.status().is_success() {
-                            Err(NetError::Unsuccess(resp.status().as_u16()))
-                        } else {
-                            Ok(resp)
-                        }
-                    })
-                    .and_then(|resp: ClientResponse| {
-                        debug!("ContentLength response's headers", resp.headers());
-                        // debug!("ContentLength response's body", &resp.body().wait().unwrap());
-
-                        if let Some(h) = resp.headers().get(header::CONTENT_RANGE) {
-                            if let Ok(s) = h.to_str() {
-                                if let Some(index) = s.find("/") {
-                                    if let Ok(length) = &s[index + 1..].parse::<u64>() {
-                                        return Ok(ContentLengthItem::RangeLength(length.clone()));
-                                    }
-                                }
-                            }
-                        }
-
-                        if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
-                            if let Ok(s) = h.to_str() {
-                                if let Ok(length) = s.parse::<u64>() {
-                                    return Ok(ContentLengthItem::DirectLength(length.clone()));
-                                }
-                            }
-                        }
-
-                        print_err!(
-                            "server doesn't support partial requests",
-                            "can't use range requests"
-                        );
-
-                        Ok(ContentLengthItem::NoLength)
-                    });
-
-                self.request = Some(Box::new(request));
+            }
+        } else {
+            if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
+                if let Ok(s) = h.to_str() {
+                    if let Ok(length) = s.parse::<u64>() {
+                        return Ok(ContentLengthItem::DirectLength(length.clone()));
+                    }
+                }
             }
         }
     }
+    Ok(ContentLengthItem::NoLength)
 }
