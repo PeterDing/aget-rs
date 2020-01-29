@@ -34,7 +34,7 @@ impl Printer {
     pub fn print_header(&mut self, path: &str) -> Result<(), AgetError> {
         writeln!(
             &mut self.stdout,
-            "\n  {}: {}",
+            "\n     {}: {}",
             self.colors.file_header.paint("  File"),
             path,
         )?;
@@ -44,10 +44,20 @@ impl Printer {
     pub fn print_length(&mut self, content_length: u64) -> Result<(), AgetError> {
         writeln!(
             &mut self.stdout,
-            "  {}: {} ({})\n",
+            "     {}: {} ({})",
             self.colors.content_length_header.paint("Length"),
             content_length.sizeof_fmt(),
             content_length,
+        )?;
+        Ok(())
+    }
+
+    pub fn print_concurrency(&mut self, concurrency: u64) -> Result<(), AgetError> {
+        writeln!(
+            &mut self.stdout,
+            "{}: {}\n",
+            self.colors.concurrency_header.paint("concurrency"),
+            concurrency,
         )?;
         Ok(())
     }
@@ -116,6 +126,7 @@ impl Printer {
 pub struct Colors {
     pub file_header: Style,
     pub content_length_header: Style,
+    pub concurrency_header: Style,
     pub completed_length: Style,
     pub total_length: Style,
     pub percent: Style,
@@ -134,6 +145,7 @@ impl Colors {
             file_header: Green.bold(),
             content_length_header: Blue.bold(),
             completed_length: Red.bold(),
+            concurrency_header: Yellow.bold(),
             total_length: Green.bold(),
             percent: Yellow.bold(),
             rate: Blue.bold(),
