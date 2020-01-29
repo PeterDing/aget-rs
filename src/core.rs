@@ -30,13 +30,14 @@ pub struct CoreProcess {
 
 impl CoreProcess {
     pub fn new(config: Config) -> Result<CoreProcess> {
-        let headers = &config
+        let headers = config
             .headers
             .iter()
             .map(AsRef::as_ref)
             .collect::<Vec<&str>>();
         let data = config.data.as_ref().map(AsRef::as_ref);
-        let options = AgetRequestOptions::new(&config.uri, &config.method, headers, data)?;
+        let options =
+            AgetRequestOptions::new(&config.uri, &config.method, &headers, data, config.timeout)?;
 
         Ok(CoreProcess {
             config,
@@ -123,7 +124,7 @@ impl CoreProcess {
                 self.options.no_concurrency();
 
                 // Let connector to be always alive
-                self.options.reset_connector(10, 60, 0);
+                self.options.reset_connector(60, 60, 0);
             }
             ContentLengthItem::NoLength => {
                 return Err(NetError::NoContentLength.into());
@@ -164,7 +165,12 @@ impl CoreProcess {
 
         // 4. Wait stream handler
         debug!("Start StreamHander");
-        let stream_header = StreamHander::new(&self.config.path, !is_concurrent);
+        let concurrency = if is_concurrent {
+            self.config.concurrency
+        } else {
+            0
+        };
+        let stream_header = StreamHander::new(&self.config.path, !is_concurrent, concurrency);
         if stream_header.is_err() {
             System::current().stop();
         }
@@ -182,10 +188,11 @@ struct StreamHander {
     task_info: TaskInfo,
     printer: Printer,
     no_record: bool,
+    concurrency: u64,
 }
 
 impl StreamHander {
-    fn new(path: &str, no_record: bool) -> Result<StreamHander, AgetError> {
+    fn new(path: &str, no_record: bool, concurrency: u64) -> Result<StreamHander, AgetError> {
         let task_info = TaskInfo::new(path)?;
 
         let mut file = File::new(path, false)?;
@@ -200,6 +207,7 @@ impl StreamHander {
             task_info,
             printer,
             no_record,
+            concurrency,
         };
         handler.init_print()?;
         Ok(handler)
@@ -219,8 +227,10 @@ impl StreamHander {
 
         let file_name = &self.task_info.path;
         let content_length = self.task_info.content_length;
+        let concurrency = self.concurrency;
         self.printer.print_header(file_name)?;
         self.printer.print_length(content_length)?;
+        self.printer.print_concurrency(concurrency)?;
         self.print_process()?;
         Ok(())
     }
