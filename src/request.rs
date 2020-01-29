@@ -35,6 +35,7 @@ impl AgetRequestOptions {
         method: &str,
         headers: &[&str],
         body: Option<&str>,
+        timeout: u64,
     ) -> Result<AgetRequestOptions, AgetError> {
         let method = match method.to_uppercase().as_str() {
             "GET" => Method::GET,
@@ -50,7 +51,7 @@ impl AgetRequestOptions {
 
         let connector = Connector::new()
             .limit(0) // no limit simultaneous connections.
-            .timeout(Duration::from_secs(5)) // DNS timeout
+            .timeout(Duration::from_secs(timeout)) // DNS timeout
             .conn_keep_alive(Duration::from_secs(60))
             .conn_lifetime(Duration::from_secs(0))
             .finish();
@@ -131,7 +132,7 @@ impl AgetRequestOptions {
     }
 }
 
-// Get redirected uri and reset `AgetRequestOptions.uri`
+/// Get redirected uri and reset `AgetRequestOptions.uri`
 pub async fn get_redirect_uri(options: &mut AgetRequestOptions) -> Result<(), NetError> {
     loop {
         let client_request = options.build()?;
