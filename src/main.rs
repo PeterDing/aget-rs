@@ -82,9 +82,8 @@ fn main() {
                         }
                     }
                 }
-
-                debug!("!!! Can't be here");
             }
+            // debug!("!!! Can't be here");
         }
         Err(err) => {
             print_err!("app config fails", err);
