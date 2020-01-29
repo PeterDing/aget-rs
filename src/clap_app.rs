@@ -67,6 +67,15 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("timeout")
+                .short("t")
+                .long("timeout")
+                .help("Timeout(seconds) of request")
+                .default_value("10")
+                .multiple(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("max-retries")
                 .long("max-retries")
                 .help("The maximum times of retring")

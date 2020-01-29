@@ -18,17 +18,18 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub uri: String,
-    pub method: String,
-    pub headers: Vec<String>,
-    pub data: Option<String>,
-    pub path: String,
-    pub concurrency: u64,
-    pub chunk_length: u64,
-    pub max_retries: u32,
-    pub retry_wait: u64,
-    pub debug: bool,
-    pub quiet: bool,
+    pub(crate) uri: String,
+    pub(crate) method: String,
+    pub(crate) headers: Vec<String>,
+    pub(crate) data: Option<String>,
+    pub(crate) path: String,
+    pub(crate) concurrency: u64,
+    pub(crate) chunk_length: u64,
+    pub(crate) timeout: u64,
+    pub(crate) max_retries: u32,
+    pub(crate) retry_wait: u64,
+    pub(crate) debug: bool,
+    pub(crate) quiet: bool,
 }
 
 impl Config {
@@ -39,6 +40,7 @@ impl Config {
         data: Option<String>,
         path: String,
         concurrency: u64,
+        timeout: u64,
         chunk_length: u64,
         max_retries: u32,
         retry_wait: u64,
@@ -52,6 +54,7 @@ impl Config {
             data,
             path,
             concurrency,
+            timeout,
             chunk_length,
             max_retries,
             retry_wait,
@@ -155,6 +158,13 @@ impl App {
             1024 * 500 // 500k
         };
 
+        // timeout
+        let timeout = if let Some(timeout) = self.matches.value_of("timeout") {
+            timeout.parse::<u64>()?
+        } else {
+            10
+        };
+
         // maximum retries
         let max_retries = if let Some(max_retries) = self.matches.value_of("max_retries") {
             max_retries.parse::<u32>()?
@@ -179,6 +189,7 @@ impl App {
             data,
             path,
             concurrency,
+            timeout,
             chunk_length,
             max_retries,
             retry_wait,
