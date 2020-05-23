@@ -60,6 +60,8 @@ pub async fn get_m3u8(
     let mut uris = vec![uri];
     let mut list = vec![];
 
+    let mut idx = 0;
+
     while let Some(uri) = uris.pop() {
         debug!("m3u8", uri);
         let u = redirect(client, method.clone(), uri.clone(), data.clone()).await?;
@@ -126,7 +128,7 @@ pub async fn get_m3u8(
                     };
 
                     list.push(M3u8Segment::new(
-                        index,
+                        idx,
                         Method::GET,
                         seg_uri.clone(),
                         None,
@@ -134,6 +136,7 @@ pub async fn get_m3u8(
                         iv,
                     ));
                     index += 1;
+                    idx += 1;
                 }
             }
             Err(_) => return Err(Error::M3U8ParseFail),
