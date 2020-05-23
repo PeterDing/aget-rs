@@ -56,7 +56,7 @@ pub async fn get_m3u8(
     data: Option<Bytes>,
 ) -> Result<M3u8SegmentList> {
     // uri -> (key, iv)
-    let mut keymap: HashMap<Uri, ([u8; 16], [u8; 16])> = HashMap::new();
+    let mut keymap: HashMap<Uri, [u8; 16]> = HashMap::new();
     let mut uris = vec![uri];
     let mut list = vec![];
 
@@ -65,9 +65,9 @@ pub async fn get_m3u8(
     while let Some(uri) = uris.pop() {
         debug!("m3u8", uri);
         let u = redirect(client, method.clone(), uri.clone(), data.clone()).await?;
-        debug!("m3u8 redirect to", u);
 
         if u != uri {
+            debug!("m3u8 redirect to", u);
             uris.push(u.clone());
             continue;
         }
@@ -112,11 +112,11 @@ pub async fn get_m3u8(
                         if let Some(uri) = &key.uri {
                             let key_url = base_url.join(&uri)?;
                             let key_uri: Uri = key_url.as_str().parse()?;
-                            if let Some((k, iv)) = keymap.get(&key_uri) {
-                                (Some(*k), Some(*iv))
+                            if let Some(k) = keymap.get(&key_uri) {
+                                (Some(*k), Some(iv))
                             } else {
                                 let k = get_key(client, Method::GET, key_uri.clone()).await?;
-                                keymap.insert(key_uri.clone(), (k, iv));
+                                keymap.insert(key_uri.clone(), k);
                                 debug!("Get key, iv", (k, iv));
                                 (Some(k), Some(iv))
                             }
