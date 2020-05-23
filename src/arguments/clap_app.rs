@@ -58,9 +58,9 @@ pub fn build_app<'a>() -> ClapApp<'a, 'a> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("chunk-length")
+            Arg::with_name("chunk-size")
                 .short("k")
-                .long("chunk-length")
+                .long("chunk-size")
                 .help("The interval length of each concurrent request e.g. -k 100k")
                 .default_value("1m")
                 .multiple(false)

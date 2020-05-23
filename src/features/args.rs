@@ -32,8 +32,8 @@ pub trait Args {
     /// The number of concurrency
     fn concurrency(&self) -> u64;
 
-    /// The chunk length of each concurrency for http task
-    fn chunk_length(&self) -> u64;
+    /// The chunk size of each concurrency for http task
+    fn chunk_size(&self) -> u64;
 
     /// The number of retry of a task
     fn retries(&self) -> u64;

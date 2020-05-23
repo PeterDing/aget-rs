@@ -64,7 +64,7 @@ impl HttpHandler {
             data: args.data().map(|ref mut d| d.to_bytes()),
             timeout,
             concurrency: args.concurrency(),
-            chunk_size: args.chunk_length(),
+            chunk_size: args.chunk_size(),
             retries: args.retries(),
             retry_wait: args.retry_wait(),
             proxy,

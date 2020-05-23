@@ -170,10 +170,10 @@ impl Args for CmdArgs {
             .unwrap_or(10)
     }
 
-    /// The chunk length of each concurrency for http task
-    fn chunk_length(&self) -> u64 {
+    /// The chunk size of each concurrency for http task
+    fn chunk_size(&self) -> u64 {
         self.matches
-            .value_of("chunk-length")
+            .value_of("chunk-size")
             .map(|i| i.literal_number().unwrap())
             .unwrap_or(1024 * 500) // 500k
     }
@@ -228,7 +228,7 @@ impl fmt::Debug for CmdArgs {
             .field("proxy", &self.proxy())
             .field("timeout", &self.timeout())
             .field("concurrency", &self.concurrency())
-            .field("chunk_length", &self.chunk_length())
+            .field("chunk_size", &self.chunk_size())
             .field("retries", &self.retries())
             .field("retry_wait", &self.retry_wait())
             .field("task_type", &self.task_type())
