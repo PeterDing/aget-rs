@@ -7,9 +7,7 @@ use crate::common::{
     range::{RangeList, RangePair},
 };
 
-pub const RANGESTATS_FILE_SUFFIX: &'static str = ".rg.aget";
-
-/// Range statistic
+/// Range recorder
 ///
 /// This struct records pairs which are `common::range::RangePair`.
 /// All information is stored at a local file.
@@ -17,14 +15,14 @@ pub const RANGESTATS_FILE_SUFFIX: &'static str = ".rg.aget";
 /// [total 8bit][ [begin1 8bit,end1 8bit] [begin2 8bit,end2 8bit] ... ]
 /// `total` position is not sum_i{end_i - begin_i + 1}. It is given by
 /// user, presenting as the real total number.
-pub struct RangeStats {
+pub struct RangeRecorder {
     inner: File,
 }
 
-impl RangeStats {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<RangeStats> {
+impl RangeRecorder {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<RangeRecorder> {
         let inner = File::new(path, true)?;
-        Ok(RangeStats { inner })
+        Ok(RangeRecorder { inner })
     }
 
     pub fn open(&mut self) -> Result<&mut Self> {
