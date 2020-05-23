@@ -55,27 +55,35 @@ impl M3u8Shower {
         Ok(())
     }
 
-    pub fn print_status(&mut self, completed: u64, total: u64, rate: f64) -> Result<()> {
+    pub fn print_status(
+        &mut self,
+        completed: u64,
+        total: u64,
+        length: u64,
+        rate: f64,
+    ) -> Result<()> {
         let percent = completed as f64 / total as f64;
 
         let completed_str = completed.to_string();
         let total_str = total.to_string();
+        let length_str = length.human_readable();
         let percent_str = format!("{:.2}", percent * 100.0);
         let rate_str = rate.human_readable();
 
-        // maximum info length is `completed_str.len()` + `total_str.len()` + 19
+        // maximum info length is `completed_str.len()` + `total_str.len()` + 26
         // e.g.
-        //   100/1021 97.98% 1003.1B/s eta: 12s
+        //   100/1021 97.98% 10m 1003.1B/s eta: 12s
         let info = format!(
-            "{completed}/{total} {percent}% {rate}/s",
+            "{completed}/{total} {length} {percent}% {rate}/s",
             completed = completed_str,
             total = total_str,
+            length = length_str,
             percent = percent_str,
             rate = rate_str,
         );
 
         // set default info length
-        let info_length = completed_str.len() + total_str.len() + 19;
+        let info_length = completed_str.len() + total_str.len() + 26;
         let miss = info_length - info.len();
 
         let terminal_width = terminal_width();
@@ -102,9 +110,10 @@ impl M3u8Shower {
 
         write!(
             &mut self.stdout,
-            "\r{completed}/{total} {percent}% {rate}/s{miss} {process_bar}{blank}  ",
+            "\r{completed}/{total} {length} {percent}% {rate}/s{miss} {process_bar}{blank}  ",
             completed = Red.bold().paint(completed_str),
             total = Green.bold().paint(total_str),
+            length = Red.bold().paint(length_str),
             percent = Yellow.bold().paint(percent_str),
             rate = Blue.bold().paint(rate_str),
             miss = " ".repeat(miss),

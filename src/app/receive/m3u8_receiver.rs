@@ -60,8 +60,9 @@ impl M3u8Receiver {
         let total = self.total;
         let completed = self.completed;
         let rate = self.ratestatus.rate();
+        let length = self.seek;
 
-        self.shower.print_status(completed, total, rate)?;
+        self.shower.print_status(completed, total, length, rate)?;
         self.ratestatus.clean();
         Ok(())
     }
