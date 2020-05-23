@@ -10,6 +10,7 @@ matrix:
       env:
         - TARGET=x86_64-unknown-linux-gnu
         - DEPLOY=true
+        - TASK=build
 
     # Build on osx
     - os: osx
@@ -17,18 +18,21 @@ matrix:
       env:
         - TARGET=x86_64-apple-darwin
         - DEPLOY=true
+        - TASK=build
 
     # Code formatting check
     - os: linux
       rust: nightly
+      env: TASK=fmt-check
       # skip the global install step
-      install:
-        - cargo install --debug --force rustfmt-nightly
+      # install:
+      #   - cargo install --debug --force rustfmt-nightly
       script: cargo fmt -- --check
 
     # Test benchmark
     - os: linux
       rust: nightly
+      env: TASK=benchmark
       install: cargo build
       script: bash ci/benchmark.bash
 
