@@ -65,6 +65,7 @@ struct RequestInfo {
 impl RequestInfo {}
 
 /// Check whether the response is success
+/// Check if status is within 200-299.
 pub fn is_success<T>(resp: &Response<T>) -> Result<(), Error> {
     let status = resp.status();
     if !status.is_success() {
@@ -90,7 +91,6 @@ pub async fn redirect(
             .header(header::RANGE, "bytes=0-1")
             .body(data)?;
         let resp = client.send_async(request).await?;
-        // is_success(&resp)?;
         if !resp.status().is_redirection() {
             break;
         }
@@ -120,7 +120,6 @@ pub async fn content_length(
             .header(header::RANGE, "bytes=0-1")
             .body(data)?;
         let resp = client.send_async(request).await?;
-        is_success(&resp)?;
         let headers = resp.headers();
         if resp.status().is_redirection() {
             if let Some(location) = headers.get(header::LOCATION) {
@@ -130,6 +129,7 @@ pub async fn content_length(
                 return Err(Error::NoLocation(format!("{}", uri)));
             }
         } else {
+            is_success(&resp)?;
             if let Some(h) = headers.get(header::CONTENT_RANGE) {
                 if let Ok(s) = h.to_str() {
                     if let Some(index) = s.find("/") {
@@ -170,7 +170,6 @@ pub async fn request(
         }
         let request = builder.body(data)?;
         let resp = client.send_async(request).await?;
-        is_success(&resp)?;
         if resp.status().is_redirection() {
             if let Some(location) = resp.headers().get(header::LOCATION) {
                 uri = location.to_str()?.parse()?;
@@ -178,7 +177,9 @@ pub async fn request(
             } else {
                 return Err(Error::NoLocation(format!("{}", uri)));
             }
+        } else {
+            is_success(&resp)?;
+            return Ok(resp);
         }
-        return Ok(resp);
     }
 }
