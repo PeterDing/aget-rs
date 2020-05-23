@@ -51,19 +51,6 @@ pub fn build_http_client(
     Ok(client)
 }
 
-// TODO
-struct RequestInfo {
-    method: Method,
-    uri: String,
-    headers: Vec<(String, String)>,
-    // Post data
-    data: Option<Bytes>,
-    timeout: u64,
-    proxy: Option<String>,
-}
-
-impl RequestInfo {}
-
 /// Check whether the response is success
 /// Check if status is within 200-299.
 pub fn is_success<T>(resp: &Response<T>) -> Result<(), Error> {
@@ -92,6 +79,7 @@ pub async fn redirect(
             .body(data)?;
         let resp = client.send_async(request).await?;
         if !resp.status().is_redirection() {
+            is_success(&resp)?; // Return unsuccess code
             break;
         }
         let headers = resp.headers();
