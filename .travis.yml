@@ -23,7 +23,9 @@ matrix:
     # Code formatting check
     - os: linux
       rust: nightly
-      env: TASK=fmt-check
+      env:
+        - TARGET=x86_64-unknown-linux-gnu
+        - TASK=fmt-check
       # skip the global install step
       # install:
       #   - cargo install --debug --force rustfmt-nightly
@@ -32,7 +34,9 @@ matrix:
     # Test benchmark
     - os: linux
       rust: nightly
-      env: TASK=benchmark
+      env:
+        - TARGET=x86_64-unknown-linux-gnu
+        - TASK=benchmark
       install: cargo build
       script: bash ci/benchmark.bash
 
