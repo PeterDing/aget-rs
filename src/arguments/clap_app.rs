@@ -1,6 +1,6 @@
 use clap::{crate_name, crate_version, App as ClapApp, AppSettings, Arg};
 
-pub fn build_app() -> ClapApp<'static, 'static> {
+pub fn build_app<'a>() -> ClapApp<'a, 'a> {
     ClapApp::new(crate_name!())
         .version(crate_version!())
         .global_setting(AppSettings::ColoredHelp)
@@ -67,11 +67,17 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("proxy")
+                .long("proxy")
+                .help("proxy (http/https/socks4/socks5) e.g. -p http://localhost:1024")
+                .multiple(false)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("timeout")
                 .short("t")
                 .long("timeout")
                 .help("Timeout(seconds) of request")
-                .default_value("10")
                 .multiple(false)
                 .takes_value(true),
         )
@@ -90,6 +96,13 @@ pub fn build_app() -> ClapApp<'static, 'static> {
                 .default_value("0")
                 .multiple(false)
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("type")
+                .long("type")
+                .default_value("http")
+                .multiple(false)
+                .help("Task type, http/m3u8"),
         )
         .arg(
             Arg::with_name("debug")

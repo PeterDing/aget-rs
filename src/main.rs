@@ -1,93 +1,68 @@
-#![allow(unused_variables)]
 #![allow(dead_code)]
-#![recursion_limit = "256"]
-
-use std::{process::exit, thread, time};
-
-use actix_rt::{spawn, System};
 
 #[macro_use]
-mod util;
+mod common;
 
 mod app;
-mod chunk;
-mod clap_app;
-mod common;
-mod core;
-mod error;
-mod printer;
-mod request;
-mod store;
-mod task;
+mod arguments;
+mod features;
 
-use crate::{
-    app::App,
-    core::CoreProcess,
-    util::{DEBUG, QUIET},
+use std::{thread, time::Duration};
+
+use app::core::{http::HttpHandler, m3u8::m3u8::M3u8Handler};
+use arguments::cmd_args::CmdArgs;
+use common::{
+    debug::{DEBUG, QUIET},
+    tasks::TaskType,
 };
-
-static mut SUCCESS: bool = false;
+use features::{args::Args, running::Runnable};
 
 fn main() {
-    let app = App::new();
-    match app.config() {
-        Ok(config) => {
-            // set verbose
-            unsafe {
-                DEBUG = config.debug;
-                QUIET = config.quiet;
-            }
+    let cmdargs = CmdArgs::new();
 
-            debug!("Input configuration", &config);
-
-            let retry_wait = config.retry_wait;
-            let max_retries = config.max_retries;
-            for i in 0..(max_retries + 1) {
-                if i > 0 {
-                    print_err!("!!! Retry", i);
-                    thread::sleep(time::Duration::from_secs(retry_wait));
-                }
-
-                let sys = System::new("Aget");
-
-                debug!("Make CoreProcess task");
-
-                let config_ = config.clone();
-                spawn(async move {
-                    let core_process = CoreProcess::new(config_);
-                    if let Ok(mut core_fut) = core_process {
-                        let result = core_fut.run().await;
-                        if let Err(err) = result {
-                            print_err!("core_fut fails", err);
-                        } else {
-                            unsafe {
-                                SUCCESS = true;
-                            }
-                        }
-                    } else {
-                        print_err!("core_fut error", "");
-                        exit(1);
-                    }
-                    debug!("main done");
-                    System::current().stop();
-                });
-
-                if let Err(err) = sys.run() {
-                    print_err!("System error", err);
-                } else {
-                    // check task state
-                    unsafe {
-                        if SUCCESS {
-                            break;
-                        }
-                    }
-                }
-            }
-            // debug!("!!! Can't be here");
+    // Set debug
+    if cmdargs.debug() {
+        unsafe {
+            DEBUG = true;
         }
-        Err(err) => {
-            print_err!("app config fails", err);
-            exit(1);
+        debug!("Args", cmdargs);
+    }
+
+    // Set quiet
+    if cmdargs.quiet() {
+        unsafe {
+            QUIET = true;
+        }
+    }
+
+    debug!("Main: begin");
+
+    let tasktype = cmdargs.task_type();
+    for i in 0..cmdargs.retries() + 1 {
+        if i != 0 {
+            println!("Retry {}", i);
+        }
+
+        let result = match tasktype {
+            TaskType::HTTP => {
+                let mut httphandler = HttpHandler::new(&cmdargs).unwrap();
+                httphandler.run()
+            }
+            TaskType::M3U8 => {
+                let mut m3u8handler = M3u8Handler::new(&cmdargs).unwrap();
+                m3u8handler.run()
+            }
+        };
+
+        if let Err(err) = result {
+            print_err!("Error", err);
+            // Retry
+            let retrywait = cmdargs.retry_wait();
+            thread::sleep(Duration::from_secs(retrywait));
+            continue;
+        } else {
+            // Success
+            break;
         }
     }
 }
