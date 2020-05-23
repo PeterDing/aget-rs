@@ -10,7 +10,7 @@ use futures::{
 use crate::{
     app::{
         receive::http_receiver::HttpReceiver,
-        stats::range_stats::{RangeStats, RANGESTATS_FILE_SUFFIX},
+        record::{common::RECORDER_FILE_SUFFIX, range_recorder::RangeRecorder},
     },
     common::{
         buf::SIZE,
@@ -77,9 +77,9 @@ impl HttpHandler {
 
         // 0. Check whether task is completed
         debug!("HttpHandler: check whether task is completed");
-        let mut rangestats =
-            RangeStats::new(&*(self.output.to_string_lossy() + RANGESTATS_FILE_SUFFIX))?;
-        if self.output.exists() && !rangestats.exists() {
+        let mut rangerecorder =
+            RangeRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+        if self.output.exists() && !rangerecorder.exists() {
             return Ok(());
         }
 
@@ -111,29 +111,29 @@ impl HttpHandler {
         let mut direct = true;
         if let ContentLengthValue::RangeLength(cl) = cl {
             if self.output.exists() {
-                if rangestats.exists() {
-                    rangestats.open()?;
+                if rangerecorder.exists() {
+                    rangerecorder.open()?;
                 } else {
                     // Task is completed
                     return Ok(());
                 }
             } else {
-                // Init rangestats
-                rangestats.remove().unwrap_or(()); // Missing error
-                rangestats.open()?;
+                // Init rangerecorder
+                rangerecorder.remove().unwrap_or(()); // Missing error
+                rangerecorder.open()?;
             }
 
-            let pre_cl = rangestats.total()?;
+            let pre_cl = rangerecorder.total()?;
 
-            // Inital rangestats
+            // Inital rangerecorder
             if pre_cl == 0 && pre_cl != cl {
-                rangestats.write_total(cl)?;
+                rangerecorder.write_total(cl)?;
                 direct = false;
             }
             // Content is empty
             else if pre_cl == 0 && pre_cl == cl {
                 File::new(&self.output, true)?.open()?;
-                rangestats.remove()?;
+                rangerecorder.remove()?;
                 return Ok(());
             }
             // Content length is not consistent
@@ -142,7 +142,7 @@ impl HttpHandler {
             }
             // Rewrite statistic status
             else if pre_cl != 0 && pre_cl == cl {
-                rangestats.rewrite()?;
+                rangerecorder.rewrite()?;
                 direct = false;
             }
         }
@@ -166,14 +166,14 @@ impl HttpHandler {
         } else {
             // Make range pairs stack
             let mut stack = vec![];
-            let gaps = rangestats.gaps()?;
+            let gaps = rangerecorder.gaps()?;
             for gap in gaps.iter() {
                 let mut list = split_pair(gap, self.chunk_size);
                 stack.append(&mut list);
             }
             stack.reverse();
             let stack = SharedRangList::new(stack);
-            // let stack = SharedRangList::new(rangestats.gaps()?);
+            // let stack = SharedRangList::new(rangerecorder.gaps()?);
             debug!("HttpHandler: range stack length", stack.len());
 
             let concurrency = std::cmp::min(stack.len() as u64, self.concurrency);
@@ -199,8 +199,8 @@ impl HttpHandler {
         let mut httpreceiver = HttpReceiver::new(&self.output, direct)?;
         httpreceiver.start(receiver).await?;
 
-        // 7. Task succeeds. Remove rangestats file
-        rangestats.remove().unwrap_or(()); // Missing error
+        // 7. Task succeeds. Remove rangerecorder file
+        rangerecorder.remove().unwrap_or(()); // Missing error
         Ok(())
     }
 }

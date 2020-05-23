@@ -5,8 +5,8 @@ use futures::{channel::mpsc::Receiver, select, stream::StreamExt};
 
 use crate::{
     app::{
+        record::{common::RECORDER_FILE_SUFFIX, range_recorder::RangeRecorder},
         show::http_show::HttpShower,
-        stats::range_stats::{RangeStats, RANGESTATS_FILE_SUFFIX},
         status::rate_status::RateStatus,
     },
     common::{bytes::bytes_type::Bytes, errors::Result, file::File, range::RangePair},
@@ -14,7 +14,7 @@ use crate::{
 
 pub struct HttpReceiver {
     output: File,
-    rangestats: Option<RangeStats>,
+    rangerecorder: Option<RangeRecorder>,
     ratestatus: RateStatus,
     shower: HttpShower,
     // Total content length of the uri
@@ -26,15 +26,15 @@ impl HttpReceiver {
         let mut outputfile = File::new(&output, true)?;
         outputfile.open()?;
 
-        let (rangestats, total, completed) = if direct {
+        let (rangerecorder, total, completed) = if direct {
             (None, 0, 0)
         } else {
-            let mut rangestats =
-                RangeStats::new(&*(output.as_ref().to_string_lossy() + RANGESTATS_FILE_SUFFIX))?;
-            rangestats.open()?;
-            let total = rangestats.total()?;
-            let completed = rangestats.count()?;
-            (Some(rangestats), total, completed)
+            let mut rangerecorder =
+                RangeRecorder::new(&*(output.as_ref().to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+            rangerecorder.open()?;
+            let total = rangerecorder.total()?;
+            let completed = rangerecorder.count()?;
+            (Some(rangerecorder), total, completed)
         };
 
         let mut ratestatus = RateStatus::new();
@@ -42,7 +42,7 @@ impl HttpReceiver {
 
         Ok(HttpReceiver {
             output: outputfile,
-            rangestats,
+            rangerecorder,
             ratestatus,
             shower: HttpShower::new(),
             // receiver,
@@ -51,7 +51,7 @@ impl HttpReceiver {
     }
 
     fn show_infos(&mut self) -> Result<()> {
-        if self.rangestats.is_none() {
+        if self.rangerecorder.is_none() {
             self.shower
                 .print_msg("Server doesn't support range request.")?;
         }
@@ -70,7 +70,7 @@ impl HttpReceiver {
         let completed = self.ratestatus.total();
         let rate = self.ratestatus.rate();
 
-        let eta = if self.rangestats.is_some() {
+        let eta = if self.rangerecorder.is_some() {
             let remains = total - completed;
             // rate > 1.0 for overflow
             if remains > 0 && rate > 1.0 {
@@ -94,8 +94,8 @@ impl HttpReceiver {
     }
 
     fn record_pair(&mut self, pair: RangePair) -> Result<()> {
-        if let Some(ref mut rangestats) = self.rangestats {
-            rangestats.write_pair(pair)?;
+        if let Some(ref mut rangerecorder) = self.rangerecorder {
+            rangerecorder.write_pair(pair)?;
         }
         Ok(())
     }

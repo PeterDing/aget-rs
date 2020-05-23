@@ -18,7 +18,7 @@ use crate::{
     app::{
         core::m3u8::common::{get_m3u8, M3u8Segment, SharedM3u8SegmentList},
         receive::m3u8_receiver::M3u8Receiver,
-        stats::list_stats::{ListStats, LISTSTATS_FILE_SUFFIX},
+        record::{bytearray_recorder::ByteArrayRecorder, common::RECORDER_FILE_SUFFIX},
     },
     common::{
         bytes::bytes_type::{Buf, Bytes},
@@ -77,13 +77,13 @@ impl M3u8Handler {
 
         // 0. Check whether task is completed
         debug!("M3u8Handler: check whether task is completed");
-        let mut liststats =
-            ListStats::new(&*(self.output.to_string_lossy() + LISTSTATS_FILE_SUFFIX))?;
-        if self.output.exists() && !liststats.exists() {
+        let mut bytearrayrecorder =
+            ByteArrayRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+        if self.output.exists() && !bytearrayrecorder.exists() {
             return Ok(());
         }
 
-        // 1. Redirect
+        // 1. Get m3u8 info
         debug!("M3u8Handler: get m3u8");
         let mut ls = get_m3u8(
             &self.client,
@@ -94,28 +94,32 @@ impl M3u8Handler {
         .await?;
         ls.reverse();
 
-        if liststats.exists() {
-            liststats.open()?;
-            let total = liststats.total()?;
+        // 2. Check recorder status
+        if bytearrayrecorder.exists() {
+            bytearrayrecorder.open()?;
+            let total = bytearrayrecorder.index(0)?;
             if total != ls.len() as u64 {
                 return Err(Error::PartsAreNotConsistent);
             } else {
-                let index = liststats.index()?;
+                let index = bytearrayrecorder.index(1)?;
                 ls.truncate((total - index) as usize);
             }
         } else {
-            liststats.open()?;
-            liststats.write_total(ls.len() as u64)?;
+            bytearrayrecorder.open()?;
+            // Write total
+            bytearrayrecorder.write(0, ls.len() as u64)?;
         }
 
+        // Use atomic u64 to control the order of sending segment content
         let index = ls.last().unwrap().index;
         let sharedindex = Arc::new(AtomicU64::new(index));
         let stack = SharedM3u8SegmentList::new(ls);
         debug!("M3u8Handler: segments", stack.len());
 
-        // 4. Create channel
+        // 3. Create channel
         let (sender, receiver) = channel::<(u64, Bytes)>(self.concurrency as usize + 10);
 
+        // 4. Spawn request task
         let concurrency = std::cmp::min(stack.len() as u64, self.concurrency);
         for i in 1..concurrency + 1 {
             let mut task = RequestTask::new(
@@ -131,13 +135,13 @@ impl M3u8Handler {
         }
         drop(sender); // Remove the reference and let `Task` to handle it
 
-        // 6. Create receiver
+        // 5. Create receiver
         debug!("M3u8Handler: create receiver");
         let mut m3u8receiver = M3u8Receiver::new(&self.output)?;
         m3u8receiver.start(receiver).await?;
 
-        // 7. Task succeeds. Remove liststats file
-        liststats.remove().unwrap_or(()); // Missing error
+        // 6. Task succeeds. Remove `ByteArrayRecorder` file
+        bytearrayrecorder.remove().unwrap_or(()); // Missing error
         Ok(())
     }
 }
@@ -207,6 +211,8 @@ impl RequestTask {
         let mut buf: Vec<u8> = vec![];
         let mut reader = resp.into_body();
         reader.read_to_end(&mut buf).await?;
+
+        // Decrypt ase128 encoded
         if let (Some(key), Some(iv)) = (segment.key, segment.iv) {
             buf = decrypt_aes128(&key[..], &iv[..], &buf[..])?;
         }
