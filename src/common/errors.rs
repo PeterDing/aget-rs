@@ -34,6 +34,10 @@ pub enum Error {
     #[error("{0} task is not supported")]
     UnsupportedTask(String),
 
+    // For IO
+    #[error("IO: Unexpected EOF")]
+    UnexpectedEof,
+
     // For Network
     #[error("Network error: {0}")]
     NetError(String),
