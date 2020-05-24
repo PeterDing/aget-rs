@@ -11,7 +11,7 @@ use crate::common::{
     list::SharedVec,
     net::{
         net::{redirect, request},
-        net_type::{HttpClient, Method, ResponseExt, Uri, Url},
+        HttpClient, Method, Uri, Url,
     },
 };
 
@@ -76,12 +76,14 @@ pub async fn get_m3u8(
 
         // Read m3u8 content
         let mut resp = request(client, method.clone(), u.clone(), data.clone(), None).await?;
+        let cn = resp.body().await?;
+        let mut cn = cn.to_vec();
 
         // Adding "\n" for the case when response content has not "\n" at end.
-        let cn = resp.text()? + "\n";
+        cn.extend(b"\n");
 
         // Parse m3u8 content
-        let parsed = parse_playlist_res(cn.as_bytes());
+        let parsed = parse_playlist_res(cn.as_ref());
         match parsed {
             Ok(Playlist::MasterPlaylist(mut pl)) => {
                 pl.variants.reverse();
@@ -147,7 +149,8 @@ pub async fn get_m3u8(
 
 async fn get_key(client: &HttpClient, method: Method, uri: Uri) -> Result<[u8; 16]> {
     let mut resp = request(client, method.clone(), uri.clone(), None, None).await?;
-    let mut cn = [0; 16];
-    resp.copy_to(&mut cn[..])?;
-    Ok(cn)
+    let cn = resp.body().await?;
+    let mut buf = [0; 16];
+    buf[..].clone_from_slice(&cn);
+    Ok(buf)
 }

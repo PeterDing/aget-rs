@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::common::{
     errors::{Error, Result},
-    net::net_type::Uri,
+    net::Uri,
 };
 
 /// Use the last of components of uri as a file name

@@ -1,30 +1,30 @@
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::features::stack::StackLike;
 
 #[derive(Debug, Clone)]
 pub struct SharedVec<T> {
-    inner: Arc<Mutex<Vec<T>>>,
+    inner: Rc<RefCell<Vec<T>>>,
 }
 
 impl<T> SharedVec<T> {
     pub fn new(list: Vec<T>) -> SharedVec<T> {
         SharedVec {
-            inner: Arc::new(Mutex::new(list)),
+            inner: Rc::new(RefCell::new(list)),
         }
     }
 }
 
 impl<T> StackLike<T> for SharedVec<T> {
     fn push(&mut self, item: T) {
-        self.inner.lock().unwrap().push(item)
+        self.inner.borrow_mut().push(item)
     }
 
     fn pop(&mut self) -> Option<T> {
-        self.inner.lock().unwrap().pop()
+        self.inner.borrow_mut().pop()
     }
 
     fn len(&self) -> usize {
-        self.inner.lock().unwrap().len()
+        self.inner.borrow().len()
     }
 }

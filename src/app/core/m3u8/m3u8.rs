@@ -7,12 +7,13 @@ use std::{
     time::Duration,
 };
 
-use async_std::{io::ReadExt, process::exit, task as std_task};
-
 use futures::{
     channel::mpsc::{channel, Sender},
+    stream::StreamExt,
     SinkExt,
 };
+
+use actix_rt::{spawn, time::delay_for, System};
 
 use crate::{
     app::{
@@ -26,7 +27,7 @@ use crate::{
         errors::{Error, Result},
         net::{
             net::{build_http_client, request},
-            net_type::{HttpClient, Method, Uri},
+            ConnectorConfig, HttpClient, Method, Uri,
         },
     },
     features::{args::Args, running::Runnable, stack::StackLike},
@@ -39,23 +40,40 @@ pub struct M3u8Handler {
     uri: Uri,
     headers: Vec<(String, String)>,
     data: Option<Bytes>,
-    timeout: u64,
+    connector_config: ConnectorConfig,
     concurrency: u64,
     proxy: Option<String>,
-    client: Arc<HttpClient>,
+    client: HttpClient,
 }
 
 impl M3u8Handler {
     pub fn new(args: &impl Args) -> Result<M3u8Handler> {
         let headers = args.headers();
         let timeout = args.timeout();
-        let proxy = args.proxy();
+        let dns_timeout = args.timeout();
+        let keep_alive = args.keep_alive();
+        let lifetime = args.lifetime();
+
+        let connector_config = ConnectorConfig {
+            timeout,
+            dns_timeout,
+            keep_alive,
+            lifetime,
+            disable_redirects: true,
+        };
 
         let hds: Vec<(&str, &str)> = headers
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect();
-        let client = build_http_client(hds.as_ref(), timeout, proxy.as_deref())?;
+        let client = build_http_client(
+            hds.as_ref(),
+            timeout,
+            dns_timeout,
+            keep_alive,
+            lifetime,
+            true, // Disable rediect
+        );
 
         debug!("M3u8Handler::new");
 
@@ -65,14 +83,14 @@ impl M3u8Handler {
             uri: args.uri(),
             headers,
             data: args.data().map(|ref mut d| d.to_bytes()),
-            timeout,
+            connector_config,
             concurrency: args.concurrency(),
-            proxy,
-            client: Arc::new(client),
+            proxy: None,
+            client,
         })
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(self) -> Result<()> {
         debug!("M3u8Handler::start");
 
         // 0. Check whether task is completed
@@ -129,7 +147,7 @@ impl M3u8Handler {
                 i,
                 sharedindex.clone(),
             );
-            std_task::spawn(async move {
+            spawn(async move {
                 task.start().await;
             });
         }
@@ -147,14 +165,15 @@ impl M3u8Handler {
 }
 
 impl Runnable for M3u8Handler {
-    fn run(&mut self) -> Result<()> {
-        std_task::block_on(self.start())
+    fn run(self) -> Result<()> {
+        let mut sys = System::new("M3u8Handler");
+        sys.block_on(self.start())
     }
 }
 
 /// Request the resource with a range header which is in the `SharedRangList`
 struct RequestTask {
-    client: Arc<HttpClient>,
+    client: HttpClient,
     stack: SharedM3u8SegmentList,
     sender: Sender<(u64, Bytes)>,
     id: u64,
@@ -163,7 +182,7 @@ struct RequestTask {
 
 impl RequestTask {
     fn new(
-        client: Arc<HttpClient>,
+        client: HttpClient,
         stack: SharedM3u8SegmentList,
         sender: Sender<(u64, Bytes)>,
         id: u64,
@@ -179,17 +198,18 @@ impl RequestTask {
     }
 
     async fn start(&mut self) {
+        debug!("Fire RequestTask", self.id);
         while let Some(segment) = self.stack.pop() {
             loop {
                 match self.req(segment.clone()).await {
                     // Exit whole process when `Error::InnerError` is returned
                     Err(Error::InnerError(msg)) => {
                         print_err!(format!("RequestTask {}: InnerError", self.id), msg);
-                        exit(1);
+                        System::current().stop();
                     }
                     Err(err) => {
                         print_err!(format!("RequestTask {}: error", self.id), err);
-                        std_task::sleep(Duration::from_secs(1)).await;
+                        delay_for(Duration::from_secs(1)).await;
                     }
                     _ => break,
                 }
@@ -198,8 +218,8 @@ impl RequestTask {
     }
 
     async fn req(&mut self, segment: M3u8Segment) -> Result<()> {
-        let resp = request(
-            &*self.client,
+        let mut resp = request(
+            &self.client,
             segment.method.clone(),
             segment.uri.clone(),
             segment.data.clone(),
@@ -208,18 +228,28 @@ impl RequestTask {
         .await?;
 
         let index = segment.index;
+
+        // !!! resp.body().await can be overflow
         let mut buf: Vec<u8> = vec![];
-        let mut reader = resp.into_body();
-        reader.read_to_end(&mut buf).await?;
+        while let Some(item) = resp.next().await {
+            match item {
+                Ok(chunk) => {
+                    buf.extend(chunk);
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
 
         // Decrypt ase128 encoded
-        if let (Some(key), Some(iv)) = (segment.key, segment.iv) {
-            buf = decrypt_aes128(&key[..], &iv[..], &buf[..])?;
-        }
+        let de = if let (Some(key), Some(iv)) = (segment.key, segment.iv) {
+            decrypt_aes128(&key[..], &iv[..], buf.as_ref())?
+        } else {
+            buf.to_vec()
+        };
 
         loop {
             if self.shared_index.load(Ordering::SeqCst) == index {
-                if let Err(err) = self.sender.send((index, Bytes::from(buf))).await {
+                if let Err(err) = self.sender.send((index, Bytes::from(de))).await {
                     return Err(Error::InnerError(format!(
                         "Error at `http::RequestTask`: Sender error: {:?}",
                         err
@@ -228,7 +258,7 @@ impl RequestTask {
                 self.shared_index.store(index + 1, Ordering::SeqCst);
                 return Ok(());
             } else {
-                std_task::sleep(Duration::from_millis(500)).await;
+                delay_for(Duration::from_millis(500)).await;
             }
         }
     }

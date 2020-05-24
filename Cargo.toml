@@ -22,15 +22,28 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytes = "0.5"
-isahc = { version = "0.9", features = ["cookies"] }
+# for async
 futures = "0.3"
-async-std = { version = "1", features = ["unstable"] }
+actix-rt = "1"
+
+# for http
+http = "0.2"
+url = "2"
+awc = { version = "2.0.0-alpha.2", features = ["openssl"] }
+actix-http = { version = "2.0.0-alpha.4", features = ["compress"] }
+
+# for errors
 thiserror = "1.0"
+
+# for crypto
+openssl = "0.10"
+
+# utilities
 term_size = "0.3"
 ansi_term = "0.12"
-openssl = "0.10"
-clap = "2"
 percent-encoding = "2"
+bytes = "0.5"
+clap = "2"
+
+# for m3u8
 m3u8-rs = "1"
-url = "2"

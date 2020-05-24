@@ -1,7 +1,8 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
-use async_std::stream;
 use futures::{channel::mpsc::Receiver, select, stream::StreamExt};
+
+use actix_rt::time::interval;
 
 use crate::{
     app::{
@@ -70,7 +71,7 @@ impl M3u8Receiver {
     pub async fn start(&mut self, receiver: Receiver<(u64, Bytes)>) -> Result<()> {
         self.show_infos()?;
 
-        let mut tick = stream::interval(Duration::from_secs(2)).fuse();
+        let mut tick = interval(Duration::from_secs(2)).fuse();
         let mut receiver = receiver.fuse();
         loop {
             select! {

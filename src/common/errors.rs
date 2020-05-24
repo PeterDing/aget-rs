@@ -2,9 +2,9 @@ use std::{io::Error as IoError, num, result};
 
 use thiserror::Error as ThisError;
 
-use isahc::{http, Error as IsahcError};
-
 use url::ParseError as UrlParseError;
+
+use awc::error::{PayloadError, SendRequestError};
 
 use openssl;
 
@@ -76,12 +76,6 @@ pub enum Error {
     AES128DecryptFail(#[from] openssl::error::ErrorStack),
 }
 
-impl From<IsahcError> for Error {
-    fn from(err: IsahcError) -> Error {
-        Error::NetError(format!("{}", err))
-    }
-}
-
 impl From<http::header::ToStrError> for Error {
     fn from(err: http::header::ToStrError) -> Error {
         Error::NetError(format!("{}", err))
@@ -90,6 +84,18 @@ impl From<http::header::ToStrError> for Error {
 
 impl From<http::Error> for Error {
     fn from(err: http::Error) -> Error {
+        Error::NetError(format!("{}", err))
+    }
+}
+
+impl From<SendRequestError> for Error {
+    fn from(err: SendRequestError) -> Error {
+        Error::NetError(format!("{}", err))
+    }
+}
+
+impl From<PayloadError> for Error {
+    fn from(err: PayloadError) -> Error {
         Error::NetError(format!("{}", err))
     }
 }

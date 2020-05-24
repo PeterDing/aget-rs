@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::features::stack::StackLike;
 
@@ -23,28 +23,28 @@ pub type RangeList = Vec<RangePair>;
 
 #[derive(Debug, Clone)]
 pub struct SharedRangList {
-    inner: Arc<Mutex<RangeList>>,
+    inner: Rc<RefCell<RangeList>>,
 }
 
 impl SharedRangList {
     pub fn new(rangelist: RangeList) -> SharedRangList {
         SharedRangList {
-            inner: Arc::new(Mutex::new(rangelist)),
+            inner: Rc::new(RefCell::new(rangelist)),
         }
     }
 }
 
 impl StackLike<RangePair> for SharedRangList {
     fn push(&mut self, pair: RangePair) {
-        self.inner.lock().unwrap().push(pair)
+        self.inner.borrow_mut().push(pair)
     }
 
     fn pop(&mut self) -> Option<RangePair> {
-        self.inner.lock().unwrap().pop()
+        self.inner.borrow_mut().pop()
     }
 
     fn len(&self) -> usize {
-        self.inner.lock().unwrap().len()
+        self.inner.borrow().len()
     }
 }
 

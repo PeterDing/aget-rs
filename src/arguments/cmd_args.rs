@@ -1,6 +1,7 @@
 use std::{
     env, fmt,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 #[cfg(windows)]
@@ -17,10 +18,7 @@ use crate::{
         character::escape_nonascii,
         errors::Error,
         liberal::ParseLiteralNumber,
-        net::{
-            net::parse_headers,
-            net_type::{Method, Uri},
-        },
+        net::{net::parse_headers, Method, Uri},
         tasks::TaskType,
     },
     features::args::Args,
@@ -155,11 +153,41 @@ impl Args for CmdArgs {
     }
 
     /// The maximum time the request is allowed to take.
-    fn timeout(&self) -> u64 {
-        self.matches
-            .value_of("timeout")
-            .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(0)
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(
+            self.matches
+                .value_of("timeout")
+                .map(|i| i.parse::<u64>().unwrap())
+                .unwrap_or(120),
+        )
+    }
+
+    fn dns_timeout(&self) -> Duration {
+        Duration::from_secs(
+            self.matches
+                .value_of("dns-timeout")
+                .map(|i| i.parse::<u64>().unwrap())
+                .unwrap_or(10),
+        )
+    }
+
+    fn keep_alive(&self) -> Duration {
+        match self.task_type() {
+            TaskType::HTTP => Duration::from_secs(10),
+            TaskType::M3U8 => Duration::from_secs(10),
+        }
+    }
+
+    fn lifetime(&self) -> Duration {
+        match self.task_type() {
+            TaskType::HTTP => Duration::from_secs(120),
+            TaskType::M3U8 => Duration::from_secs(60),
+        }
+    }
+
+    // Always return `true`
+    fn disable_redirects(&self) -> bool {
+        true
     }
 
     /// The number of concurrency
@@ -227,6 +255,10 @@ impl fmt::Debug for CmdArgs {
             .field("headers", &self.headers())
             .field("proxy", &self.proxy())
             .field("timeout", &self.timeout())
+            .field("dns_timeout", &self.dns_timeout())
+            .field("keep_alive", &self.keep_alive())
+            .field("lifetime", &self.lifetime())
+            .field("disable_redirects", &self.disable_redirects())
             .field("concurrency", &self.concurrency())
             .field("chunk_size", &self.chunk_size())
             .field("retries", &self.retries())

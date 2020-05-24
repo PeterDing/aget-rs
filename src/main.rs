@@ -9,7 +9,7 @@ mod features;
 
 use std::{thread, time::Duration};
 
-use app::core::{http::HttpHandler, m3u8::m3u8::M3u8Handler};
+use app::core::{http::HttpHandler, m3u8::M3u8Handler};
 use arguments::cmd_args::CmdArgs;
 use common::{
     debug::{DEBUG, QUIET},
@@ -45,11 +45,11 @@ fn main() {
 
         let result = match tasktype {
             TaskType::HTTP => {
-                let mut httphandler = HttpHandler::new(&cmdargs).unwrap();
+                let httphandler = HttpHandler::new(&cmdargs).unwrap();
                 httphandler.run()
             }
             TaskType::M3U8 => {
-                let mut m3u8handler = M3u8Handler::new(&cmdargs).unwrap();
+                let m3u8handler = M3u8Handler::new(&cmdargs).unwrap();
                 m3u8handler.run()
             }
         };

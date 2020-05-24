@@ -1,11 +1,12 @@
-use std::{path::PathBuf, sync::Arc};
-
-use async_std::{io::ReadExt, process::exit, task as std_task};
+use std::{path::PathBuf, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
+    stream::StreamExt,
     SinkExt,
 };
+
+use actix_rt::{spawn, System};
 
 use crate::{
     app::{
@@ -13,13 +14,12 @@ use crate::{
         record::{common::RECORDER_FILE_SUFFIX, range_recorder::RangeRecorder},
     },
     common::{
-        buf::SIZE,
-        bytes::bytes_type::{Buf, Bytes, BytesMut},
+        bytes::bytes_type::{Buf, Bytes},
         errors::{Error, Result},
         file::File,
         net::{
             net::{build_http_client, content_length, redirect, request},
-            net_type::{ContentLengthValue, HttpClient, Method, Uri},
+            ConnectorConfig, ContentLengthValue, HttpClient, Method, Uri,
         },
         range::{split_pair, RangePair, SharedRangList},
     },
@@ -33,26 +33,44 @@ pub struct HttpHandler {
     uri: Uri,
     headers: Vec<(String, String)>,
     data: Option<Bytes>,
-    timeout: u64,
+    connector_config: ConnectorConfig,
     concurrency: u64,
     chunk_size: u64,
     retries: u64,
     retry_wait: u64,
+    // proxy is None, because `awc` does not suppurt proxy
     proxy: Option<String>,
-    client: Arc<HttpClient>,
+    client: HttpClient,
 }
 
 impl HttpHandler {
     pub fn new(args: &impl Args) -> Result<HttpHandler> {
         let headers = args.headers();
         let timeout = args.timeout();
-        let proxy = args.proxy();
+        let dns_timeout = args.timeout();
+        let keep_alive = args.keep_alive();
+        let lifetime = args.lifetime();
+
+        let connector_config = ConnectorConfig {
+            timeout,
+            dns_timeout,
+            keep_alive,
+            lifetime,
+            disable_redirects: true,
+        };
 
         let hds: Vec<(&str, &str)> = headers
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect();
-        let client = build_http_client(hds.as_ref(), timeout, proxy.as_deref())?;
+        let client = build_http_client(
+            hds.as_ref(),
+            timeout,
+            dns_timeout,
+            keep_alive,
+            lifetime,
+            true, // Disable rediect
+        );
 
         debug!("HttpHandler::new");
 
@@ -62,17 +80,17 @@ impl HttpHandler {
             uri: args.uri(),
             headers,
             data: args.data().map(|ref mut d| d.to_bytes()),
-            timeout,
+            connector_config,
             concurrency: args.concurrency(),
             chunk_size: args.chunk_size(),
             retries: args.retries(),
             retry_wait: args.retry_wait(),
-            proxy,
-            client: Arc::new(client),
+            proxy: None,
+            client,
         })
     }
 
-    async fn start(&mut self) -> Result<()> {
+    async fn start(mut self) -> Result<()> {
         debug!("HttpHandler::start");
 
         // 0. Check whether task is completed
@@ -153,14 +171,29 @@ impl HttpHandler {
         // 5. Dispatch Task
         debug!("HttpHandler: dispatch task: direct", direct);
         if direct {
+            // We need a new `HttpClient` which has unlimited life time for `DirectRequestTask`
+            let hds: Vec<(&str, &str)> = self
+                .headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect();
+            let ConnectorConfig { dns_timeout, .. } = self.connector_config;
+            let client = build_http_client(
+                hds.as_ref(),
+                Duration::from_secs(0),
+                dns_timeout,
+                Duration::from_secs(0),
+                Duration::from_secs(0),
+                true, // Disable rediect
+            );
             let mut task = DirectRequestTask::new(
-                self.client.clone(),
+                client,
                 self.method.clone(),
                 self.uri.clone(),
                 self.data.clone(),
                 sender.clone(),
             );
-            std_task::spawn(async move {
+            spawn(async move {
                 task.start().await;
             });
         } else {
@@ -187,7 +220,7 @@ impl HttpHandler {
                     sender.clone(),
                     i,
                 );
-                std_task::spawn(async move {
+                spawn(async move {
                     task.start().await;
                 });
             }
@@ -206,14 +239,15 @@ impl HttpHandler {
 }
 
 impl Runnable for HttpHandler {
-    fn run(&mut self) -> Result<()> {
-        std_task::block_on(self.start())
+    fn run(self) -> Result<()> {
+        let mut sys = System::new("HttpHandler");
+        sys.block_on(self.start())
     }
 }
 
 /// Directly request the resource without range header
 struct DirectRequestTask {
-    client: Arc<HttpClient>,
+    client: HttpClient,
     method: Method,
     uri: Uri,
     data: Option<Bytes>,
@@ -222,7 +256,7 @@ struct DirectRequestTask {
 
 impl DirectRequestTask {
     fn new(
-        client: Arc<HttpClient>,
+        client: HttpClient,
         method: Method,
         uri: Uri,
         data: Option<Bytes>,
@@ -240,7 +274,7 @@ impl DirectRequestTask {
     async fn start(&mut self) {
         loop {
             let resp = request(
-                &*self.client,
+                &self.client,
                 self.method.clone(),
                 self.uri.clone(),
                 self.data.clone(),
@@ -251,20 +285,15 @@ impl DirectRequestTask {
                 print_err!("DirectRequestTask request error", err);
                 continue;
             }
-            let resp = resp.unwrap();
+            let mut resp = resp.unwrap();
 
-            let mut buf = [0; SIZE];
-            let mut offset = 0;
-            let mut reader = resp.into_body();
-            loop {
-                match reader.read(&mut buf).await {
-                    Ok(0) => {
-                        return;
-                    }
-                    Ok(len) => {
+            let mut offset = 0u64;
+            while let Some(item) = resp.next().await {
+                match item {
+                    Ok(chunk) => {
+                        let len = chunk.len();
                         let pair = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
-                        let mut b = BytesMut::from(&buf[..len]);
-                        if self.sender.send((pair, b.to_bytes())).await.is_err() {
+                        if self.sender.send((pair, chunk)).await.is_err() {
                             break;
                         }
                         offset += len as u64;
@@ -281,7 +310,7 @@ impl DirectRequestTask {
 
 /// Request the resource with a range header which is in the `SharedRangList`
 struct RangeRequestTask {
-    client: Arc<HttpClient>,
+    client: HttpClient,
     method: Method,
     uri: Uri,
     data: Option<Bytes>,
@@ -292,7 +321,7 @@ struct RangeRequestTask {
 
 impl RangeRequestTask {
     fn new(
-        client: Arc<HttpClient>,
+        client: HttpClient,
         method: Method,
         uri: Uri,
         data: Option<Bytes>,
@@ -312,12 +341,13 @@ impl RangeRequestTask {
     }
 
     async fn start(&mut self) {
+        debug!("Fire RangeRequestTask", self.id);
         while let Some(pair) = self.stack.pop() {
             match self.req(pair).await {
                 // Exit whole process when `Error::InnerError` is returned
                 Err(Error::InnerError(msg)) => {
                     print_err!(format!("RangeRequestTask {}: InnerError", self.id), msg);
-                    exit(1);
+                    System::current().stop();
                 }
                 Err(err) => {
                     print_err!(format!("RangeRequestTask {}: error", self.id), err);
@@ -329,7 +359,7 @@ impl RangeRequestTask {
 
     async fn req(&mut self, pair: RangePair) -> Result<()> {
         let resp = request(
-            &*self.client,
+            &self.client,
             self.method.clone(),
             self.uri.clone(),
             self.data.clone(),
@@ -341,41 +371,18 @@ impl RangeRequestTask {
             self.stack.push(pair);
             return Err(err);
         }
-        let resp = resp.unwrap();
+        let mut resp = resp.unwrap();
 
         let length = pair.length();
         let mut count = 0;
-        let mut buf = [0; SIZE];
         let mut offset = pair.begin;
-        let mut reader = resp.into_body();
-        loop {
-            // Reads some bytes from the byte stream.
-            //
-            // Returns the number of bytes read from the start of the buffer.
-            //
-            // If the return value is `Ok(n)`, then it must be guaranteed that
-            // `0 <= n <= buf.len()`. A nonzero `n` value indicates that the buffer has been
-            // filled in with `n` bytes of data. If `n` is `0`, then it can indicate one of two
-            // scenarios:
-            //
-            // 1. This reader has reached its "end of file" and will likely no longer be able to
-            //    produce bytes. Note that this does not mean that the reader will always no
-            //    longer be able to produce bytes.
-            // 2. The buffer specified was 0 bytes in length.
-            match reader.read(&mut buf).await {
-                Ok(0) => {
-                    if count != length {
-                        let pr = RangePair::new(offset, pair.end);
-                        self.stack.push(pr);
-                        return Err(Error::UncompletedRead);
-                    } else {
-                        return Ok(());
-                    }
-                }
-                Ok(len) => {
+
+        while let Some(item) = resp.next().await {
+            match item {
+                Ok(chunk) => {
+                    let len = chunk.len();
                     let pr = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
-                    let mut b = BytesMut::from(&buf[..len]);
-                    if let Err(err) = self.sender.send((pr, b.to_bytes())).await {
+                    if let Err(err) = self.sender.send((pr, chunk)).await {
                         let pr = RangePair::new(offset, pair.end);
                         self.stack.push(pr);
                         return Err(Error::InnerError(format!(
@@ -392,6 +399,15 @@ impl RangeRequestTask {
                     return Err(err.into());
                 }
             }
+        }
+
+        // Check range length whether is equal to the length of all received chunk
+        if count != length {
+            let pr = RangePair::new(offset, pair.end);
+            self.stack.push(pr);
+            Err(Error::UncompletedRead)
+        } else {
+            Ok(())
         }
     }
 }

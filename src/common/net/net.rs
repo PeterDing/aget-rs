@@ -1,10 +1,11 @@
-use std::time;
+use std::time::Duration;
 
 use crate::common::{
     bytes::bytes_type::Bytes,
     errors::{Error, Result},
-    net::net_type::{
-        header, Body, Configurable, ContentLengthValue, HttpClient, Method, Request, Response, Uri,
+    net::{
+        header, ClientResponse, Connector, ContentLengthValue, HttpClient, Method, RClientResponse,
+        Uri,
     },
     range::RangePair,
 };
@@ -33,27 +34,63 @@ pub fn parse_headers<'a, I: IntoIterator<Item = &'a str>>(
 /// Builder a http client of curl
 pub fn build_http_client(
     headers: &[(&str, &str)],
-    timeout: u64,
-    proxy: Option<&str>,
-) -> Result<HttpClient> {
-    let mut builder = HttpClient::builder().default_headers(headers).proxy({
-        if proxy.is_some() {
-            Some(proxy.unwrap().parse()?)
-        } else {
-            None
-        }
-    });
-    // If timeout is zero, no timeout will be enforced.
-    if timeout > 0 {
-        builder = builder.timeout(time::Duration::from_secs(timeout));
+    timeout: Duration,
+    dns_timeout: Duration,
+    keep_alive: Duration,
+    lifetime: Duration,
+    disable_redirects: bool,
+) -> HttpClient {
+    let conn = Connector::new()
+        // Set total number of simultaneous connections per type of scheme.
+        //
+        // If limit is 0, the connector has no limit.
+        // The default limit size is 100.
+        .limit(0)
+        // Connection timeout
+        //
+        // i.e. max time to connect to remote host including dns name resolution.
+        // Set to 1 second by default.
+        .timeout(dns_timeout)
+        // Set keep-alive period for opened connection.
+        //
+        // Keep-alive period is the period between connection usage. If
+        // the delay between repeated usages of the same connection
+        // exceeds this period, the connection is closed.
+        // Default keep-alive period is 15 seconds.
+        .conn_keep_alive(keep_alive)
+        // Set max lifetime period for connection.
+        //
+        // Connection lifetime is max lifetime of any opened connection
+        // until it is closed regardless of keep-alive period.
+        // Default lifetime period is 75 seconds.
+        .conn_lifetime(lifetime)
+        .finish();
+
+    let mut builder = HttpClient::build()
+        .connector(conn)
+        // Set request timeout
+        //
+        // Request timeout is the total time before a response must be received.
+        // Default value is 5 seconds.
+        .timeout(timeout)
+        // Here we do not use default headers.
+        .no_default_headers();
+
+    if disable_redirects {
+        builder = builder.disable_redirects();
     }
-    let client = builder.cookies().build()?;
-    Ok(client)
+
+    // Add Default headers
+    for (k, v) in headers {
+        builder = builder.header(*k, *v);
+    }
+
+    builder.finish()
 }
 
 /// Check whether the response is success
 /// Check if status is within 200-299.
-pub fn is_success<T>(resp: &Response<T>) -> Result<(), Error> {
+pub fn is_success<T>(resp: &ClientResponse<T>) -> Result<(), Error> {
     let status = resp.status();
     if !status.is_success() {
         Err(Error::Unsuccess(status.as_u16()))
@@ -71,17 +108,21 @@ pub async fn redirect(
 ) -> Result<Uri> {
     let mut uri = uri;
     loop {
-        let data = data.clone().map(|d| Body::from_bytes(&d));
-        let request = Request::builder()
-            .method(method.clone())
-            .uri(uri.clone())
-            .header(header::RANGE, "bytes=0-1")
-            .body(data)?;
-        let resp = client.send_async(request).await?;
+        let req = client
+            .request(method.clone(), uri.clone())
+            .set_header(header::RANGE, "bytes=0-1");
+
+        let resp = if let Some(d) = data.clone() {
+            req.send_body(d).await?
+        } else {
+            req.send().await?
+        };
+
         if !resp.status().is_redirection() {
             is_success(&resp)?; // Return unsuccess code
             break;
         }
+
         let headers = resp.headers();
         if let Some(location) = headers.get(header::LOCATION) {
             uri = location.to_str()?.parse()?;
@@ -101,13 +142,16 @@ pub async fn content_length(
 ) -> Result<ContentLengthValue> {
     let mut uri = uri;
     loop {
-        let data = data.clone().map(|d| Body::from_bytes(&d));
-        let request = Request::builder()
-            .method(method.clone())
-            .uri(uri.clone())
-            .header(header::RANGE, "bytes=0-1")
-            .body(data)?;
-        let resp = client.send_async(request).await?;
+        let req = client
+            .request(method.clone(), uri.clone())
+            .set_header(header::RANGE, "bytes=0-1");
+
+        let resp = if let Some(d) = data.clone() {
+            req.send_body(d).await?
+        } else {
+            req.send().await?
+        };
+
         let headers = resp.headers();
         if resp.status().is_redirection() {
             if let Some(location) = headers.get(header::LOCATION) {
@@ -147,17 +191,21 @@ pub async fn request(
     uri: Uri,
     data: Option<Bytes>,
     range: Option<RangePair>,
-) -> Result<Response<Body>> {
+) -> Result<RClientResponse> {
     let mut uri = uri;
     loop {
-        let data = data.clone().map(|d| Body::from_bytes(&d));
-        let mut builder = Request::builder().method(method.clone()).uri(uri.clone());
+        let mut req = client.request(method.clone(), uri.clone());
 
         if let Some(RangePair { begin, end }) = range {
-            builder = builder.header(header::RANGE, &format!("bytes={}-{}", begin, end));
+            req = req.set_header(header::RANGE, format!("bytes={}-{}", begin, end));
         }
-        let request = builder.body(data)?;
-        let resp = client.send_async(request).await?;
+
+        let resp = if let Some(d) = data.clone() {
+            req.send_body(d).await?
+        } else {
+            req.send().await?
+        };
+
         if resp.status().is_redirection() {
             if let Some(location) = resp.headers().get(header::LOCATION) {
                 uri = location.to_str()?.parse()?;

@@ -66,18 +66,27 @@ pub fn build_app<'a>() -> ClapApp<'a, 'a> {
                 .multiple(false)
                 .takes_value(true),
         )
-        .arg(
-            Arg::with_name("proxy")
-                .long("proxy")
-                .help("proxy (http/https/socks4/socks5) e.g. -p http://localhost:1024")
-                .multiple(false)
-                .takes_value(true),
-        )
+        // `awc` does not support proxy
+        // .arg(
+        //     Arg::with_name("proxy")
+        //         .long("proxy")
+        //         .help("proxy (http/https/socks4/socks5) e.g. -p http://localhost:1024")
+        //         .multiple(false)
+        //         .takes_value(true),
+        // )
         .arg(
             Arg::with_name("timeout")
                 .short("t")
                 .long("timeout")
                 .help("Timeout(seconds) of request")
+                .multiple(false)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("dns-timeout")
+                .short("n")
+                .long("dns-timeout")
+                .help("DNS Timeout(seconds) of request")
                 .multiple(false)
                 .takes_value(true),
         )
