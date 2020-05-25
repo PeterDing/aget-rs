@@ -1,11 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+use std::{cell::Cell, path::PathBuf, rc::Rc, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
@@ -50,7 +43,7 @@ impl M3u8Handler {
     pub fn new(args: &impl Args) -> Result<M3u8Handler> {
         let headers = args.headers();
         let timeout = args.timeout();
-        let dns_timeout = args.timeout();
+        let dns_timeout = args.dns_timeout();
         let keep_alive = args.keep_alive();
         let lifetime = args.lifetime();
 
@@ -130,7 +123,7 @@ impl M3u8Handler {
 
         // Use atomic u64 to control the order of sending segment content
         let index = ls.last().unwrap().index;
-        let sharedindex = Arc::new(AtomicU64::new(index));
+        let sharedindex = Rc::new(Cell::new(index));
         let stack = SharedM3u8SegmentList::new(ls);
         debug!("M3u8Handler: segments", stack.len());
 
@@ -177,7 +170,7 @@ struct RequestTask {
     stack: SharedM3u8SegmentList,
     sender: Sender<(u64, Bytes)>,
     id: u64,
-    shared_index: Arc<AtomicU64>,
+    shared_index: Rc<Cell<u64>>,
 }
 
 impl RequestTask {
@@ -186,7 +179,7 @@ impl RequestTask {
         stack: SharedM3u8SegmentList,
         sender: Sender<(u64, Bytes)>,
         id: u64,
-        sharedindex: Arc<AtomicU64>,
+        sharedindex: Rc<Cell<u64>>,
     ) -> RequestTask {
         RequestTask {
             client,
@@ -248,14 +241,14 @@ impl RequestTask {
         };
 
         loop {
-            if self.shared_index.load(Ordering::SeqCst) == index {
+            if self.shared_index.get() == index {
                 if let Err(err) = self.sender.send((index, Bytes::from(de))).await {
                     return Err(Error::InnerError(format!(
                         "Error at `http::RequestTask`: Sender error: {:?}",
                         err
                     )));
                 }
-                self.shared_index.store(index + 1, Ordering::SeqCst);
+                self.shared_index.set(index + 1);
                 return Ok(());
             } else {
                 delay_for(Duration::from_millis(500)).await;
