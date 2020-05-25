@@ -2,11 +2,12 @@ use std::{path::PathBuf, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
+    select,
     stream::StreamExt,
     SinkExt,
 };
 
-use actix_rt::{spawn, System};
+use actix_rt::{spawn, time::interval, System};
 
 use crate::{
     app::{
@@ -210,6 +211,7 @@ impl HttpHandler {
                     stack.clone(),
                     sender.clone(),
                     i,
+                    self.connector_config.timeout,
                 );
                 spawn(async move {
                     task.start().await;
@@ -312,6 +314,7 @@ struct RangeRequestTask {
     stack: SharedRangList,
     sender: Sender<(RangePair, Bytes)>,
     id: u64,
+    timeout: Duration,
 }
 
 impl RangeRequestTask {
@@ -323,6 +326,7 @@ impl RangeRequestTask {
         stack: SharedRangList,
         sender: Sender<(RangePair, Bytes)>,
         id: u64,
+        timeout: Duration,
     ) -> RangeRequestTask {
         RangeRequestTask {
             client,
@@ -332,6 +336,7 @@ impl RangeRequestTask {
             stack,
             sender,
             id,
+            timeout,
         }
     }
 
@@ -366,36 +371,56 @@ impl RangeRequestTask {
             self.stack.push(pair);
             return Err(err);
         }
-        let mut resp = resp.unwrap();
+        let resp = resp.unwrap();
 
         let length = pair.length();
         let mut count = 0;
         let mut offset = pair.begin;
 
-        while let Some(item) = resp.next().await {
-            match item {
-                Ok(chunk) => {
-                    let len = chunk.len();
-                    if len == 0 {
-                        continue;
-                    }
+        // Set timeout for reading
+        let mut resp = resp.fuse();
+        let mut tick = interval(self.timeout).fuse();
+        let mut fire = false;
+        loop {
+            select! {
+                item = resp.next() => {
+                    if let Some(item) = item {
+                        match item {
+                            Ok(chunk) => {
+                                let len = chunk.len();
+                                if len == 0 {
+                                    continue;
+                                }
 
-                    let pr = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
-                    if let Err(err) = self.sender.send((pr, chunk)).await {
-                        let pr = RangePair::new(offset, pair.end);
-                        self.stack.push(pr);
-                        return Err(Error::InnerError(format!(
-                            "Error at `http::RangeRequestTask`: Sender error: {:?}",
-                            err
-                        )));
+                                // The pair is a closed interval
+                                let pr = RangePair::new(offset, offset + len as u64 - 1);
+                                if let Err(err) = self.sender.send((pr, chunk)).await {
+                                    let pr = RangePair::new(offset, pair.end);
+                                    self.stack.push(pr);
+                                    return Err(Error::InnerError(format!(
+                                        "Error at `http::RangeRequestTask`: Sender error: {:?}",
+                                        err
+                                    )));
+                                }
+                                offset += len as u64;
+                                count += len as u64;
+                            }
+                            Err(err) => {
+                                let pr = RangePair::new(offset, pair.end);
+                                self.stack.push(pr);
+                                return Err(err.into());
+                            }
+                        }
+                    } else {
+                        break;
                     }
-                    offset += len as u64;
-                    count += len as u64;
                 }
-                Err(err) => {
-                    let pr = RangePair::new(offset, pair.end);
-                    self.stack.push(pr);
-                    return Err(err.into());
+                _ = tick.next() => {
+                    if fire {
+                        return Err(Error::Timeout);
+                    } else {
+                        fire = true;
+                    }
                 }
             }
         }

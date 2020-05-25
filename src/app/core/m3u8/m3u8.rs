@@ -2,11 +2,16 @@ use std::{cell::Cell, path::PathBuf, rc::Rc, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
+    select,
     stream::StreamExt,
     SinkExt,
 };
 
-use actix_rt::{spawn, time::delay_for, System};
+use actix_rt::{
+    spawn,
+    time::{delay_for, interval},
+    System,
+};
 
 use crate::{
     app::{
@@ -139,6 +144,7 @@ impl M3u8Handler {
                 sender.clone(),
                 i,
                 sharedindex.clone(),
+                self.connector_config.timeout,
             );
             spawn(async move {
                 task.start().await;
@@ -171,6 +177,7 @@ struct RequestTask {
     sender: Sender<(u64, Bytes)>,
     id: u64,
     shared_index: Rc<Cell<u64>>,
+    timeout: Duration,
 }
 
 impl RequestTask {
@@ -180,6 +187,7 @@ impl RequestTask {
         sender: Sender<(u64, Bytes)>,
         id: u64,
         sharedindex: Rc<Cell<u64>>,
+        timeout: Duration,
     ) -> RequestTask {
         RequestTask {
             client,
@@ -187,6 +195,7 @@ impl RequestTask {
             sender,
             id,
             shared_index: sharedindex,
+            timeout,
         }
     }
 
@@ -211,7 +220,7 @@ impl RequestTask {
     }
 
     async fn req(&mut self, segment: M3u8Segment) -> Result<()> {
-        let mut resp = request(
+        let resp = request(
             &self.client,
             segment.method.clone(),
             segment.uri.clone(),
@@ -224,12 +233,32 @@ impl RequestTask {
 
         // !!! resp.body().await can be overflow
         let mut buf: Vec<u8> = vec![];
-        while let Some(item) = resp.next().await {
-            match item {
-                Ok(chunk) => {
-                    buf.extend(chunk);
+
+        // Set timeout for reading
+        let mut resp = resp.fuse();
+        let mut tick = interval(self.timeout).fuse();
+        let mut fire = false;
+        loop {
+            select! {
+                item = resp.next() => {
+                    if let Some(item) = item {
+                        match item {
+                            Ok(chunk) => {
+                                buf.extend(chunk);
+                            }
+                            Err(err) => return Err(err.into()),
+                        }
+                    } else {
+                        break;
+                    }
                 }
-                Err(err) => return Err(err.into()),
+                _ = tick.next() => {
+                    if fire {
+                        return Err(Error::Timeout);
+                    } else {
+                        fire = true;
+                    }
+                }
             }
         }
 
