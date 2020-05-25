@@ -74,10 +74,13 @@ pub fn build_app<'a>() -> ClapApp<'a, 'a> {
         //         .takes_value(true)
         //         .help("proxy (http/https/socks4/socks5) e.g. -p http://localhost:1024")
         // )
+        //
+        // Request timeout is the total time before a response must be received.
         .arg(
             Arg::with_name("timeout")
                 .short("t")
                 .long("timeout")
+                .default_value("60")
                 .multiple(false)
                 .takes_value(true)
                 .help("Timeout(seconds) of request")
@@ -86,6 +89,7 @@ pub fn build_app<'a>() -> ClapApp<'a, 'a> {
             Arg::with_name("dns-timeout")
                 .short("n")
                 .long("dns-timeout")
+                .default_value("10")
                 .multiple(false)
                 .takes_value(true)
                 .help("DNS Timeout(seconds) of request")

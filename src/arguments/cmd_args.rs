@@ -152,13 +152,16 @@ impl Args for CmdArgs {
         None
     }
 
-    /// The maximum time the request is allowed to take.
+    // Set request timeout
+    //
+    // Request timeout is the total time before a response must be received.
+    // Default value is 5 seconds.
     fn timeout(&self) -> Duration {
         Duration::from_secs(
             self.matches
                 .value_of("timeout")
                 .map(|i| i.parse::<u64>().unwrap())
-                .unwrap_or(120),
+                .unwrap_or(60),
         )
     }
 
@@ -173,15 +176,15 @@ impl Args for CmdArgs {
 
     fn keep_alive(&self) -> Duration {
         match self.task_type() {
-            TaskType::HTTP => Duration::from_secs(10),
+            TaskType::HTTP => Duration::from_secs(60),
             TaskType::M3U8 => Duration::from_secs(10),
         }
     }
 
     fn lifetime(&self) -> Duration {
         match self.task_type() {
-            TaskType::HTTP => Duration::from_secs(120),
-            TaskType::M3U8 => Duration::from_secs(60),
+            TaskType::HTTP => Duration::from_secs(0),
+            TaskType::M3U8 => Duration::from_secs(0),
         }
     }
 
