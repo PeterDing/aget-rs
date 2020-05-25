@@ -18,7 +18,7 @@ use crate::{
         errors::{Error, Result},
         file::File,
         net::{
-            net::{build_http_client, content_length, redirect, request},
+            net::{build_http_client, redirect_and_contentlength, request},
             ConnectorConfig, ContentLengthValue, HttpClient, Method, Uri,
         },
         range::{split_pair, RangePair, SharedRangList},
@@ -47,7 +47,7 @@ impl HttpHandler {
     pub fn new(args: &impl Args) -> Result<HttpHandler> {
         let headers = args.headers();
         let timeout = args.timeout();
-        let dns_timeout = args.timeout();
+        let dns_timeout = args.dns_timeout();
         let keep_alive = args.keep_alive();
         let lifetime = args.lifetime();
 
@@ -101,9 +101,9 @@ impl HttpHandler {
             return Ok(());
         }
 
-        // 1. Redirect
-        debug!("HttpHandler: redirect start");
-        let uri = redirect(
+        // 1. redirect and get content_length
+        debug!("HttpHandler: redirect and content_length start");
+        let (uri, cl) = redirect_and_contentlength(
             &self.client,
             self.method.clone(),
             self.uri.clone(),
@@ -111,20 +111,11 @@ impl HttpHandler {
         )
         .await?;
         debug!("HttpHandler: redirect to", uri);
-        self.uri = uri;
-
-        // 2. get content_length
-        debug!("HttpHandler: content_length start");
-        let cl = content_length(
-            &self.client,
-            self.method.clone(),
-            self.uri.clone(),
-            self.data.clone(),
-        )
-        .await?;
         debug!("HttpHandler: content_length", cl);
 
-        // 3. Compare recorded content length with the above one
+        self.uri = uri;
+
+        // 2. Compare recorded content length with the above one
         debug!("HttpHandler: compare recorded content length");
         let mut direct = true;
         if let ContentLengthValue::RangeLength(cl) = cl {
@@ -165,10 +156,10 @@ impl HttpHandler {
             }
         }
 
-        // 4. Create channel
+        // 3. Create channel
         let (sender, receiver) = channel::<(RangePair, Bytes)>(self.concurrency as usize + 10);
 
-        // 5. Dispatch Task
+        // 4. Dispatch Task
         debug!("HttpHandler: dispatch task: direct", direct);
         if direct {
             // We need a new `HttpClient` which has unlimited life time for `DirectRequestTask`
@@ -227,12 +218,12 @@ impl HttpHandler {
         }
         drop(sender); // Remove the reference and let `Task` to handle it
 
-        // 6. Create receiver
+        // 5. Create receiver
         debug!("HttpHandler: create receiver");
         let mut httpreceiver = HttpReceiver::new(&self.output, direct)?;
         httpreceiver.start(receiver).await?;
 
-        // 7. Task succeeds. Remove rangerecorder file
+        // 6. Task succeeds. Remove rangerecorder file
         rangerecorder.remove().unwrap_or(()); // Missing error
         Ok(())
     }
@@ -292,6 +283,10 @@ impl DirectRequestTask {
                 match item {
                     Ok(chunk) => {
                         let len = chunk.len();
+                        if len == 0 {
+                            continue;
+                        }
+
                         let pair = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
                         if self.sender.send((pair, chunk)).await.is_err() {
                             break;
@@ -381,6 +376,10 @@ impl RangeRequestTask {
             match item {
                 Ok(chunk) => {
                     let len = chunk.len();
+                    if len == 0 {
+                        continue;
+                    }
+
                     let pr = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
                     if let Err(err) = self.sender.send((pr, chunk)).await {
                         let pr = RangePair::new(offset, pair.end);
