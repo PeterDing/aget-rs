@@ -1,7 +1,7 @@
 use std::io::{stdout, Stdout, Write};
 
 use crate::{
-    app::show::common::bars,
+    app::show::common::du_bars,
     common::{
         colors::{Black, Blue, Green, Red, Yellow},
         errors::Result,
@@ -83,42 +83,28 @@ impl M3u8Shower {
         );
 
         // set default info length
-        let info_length = completed_str.len() + total_str.len() + 26;
+        let info_length = total_str.len() * 2 + 26;
         let miss = info_length - info.len();
 
         let terminal_width = terminal_width();
         let bar_length = terminal_width - info_length as u64 - 3;
-        let process_bar_length = (bar_length as f64 * percent) as u64;
-        let blank_length = bar_length - process_bar_length;
+        let bar_done_length = (bar_length as f64 * percent) as u64;
+        let bar_undone_length = bar_length - bar_done_length;
 
-        let (bar, bar_right, bar_left) = bars();
-
-        let bar_done_str = if process_bar_length > 0 {
-            format!(
-                "{}{}",
-                bar.repeat((process_bar_length - 1) as usize),
-                bar_right
-            )
-        } else {
-            "".to_owned()
-        };
-        let bar_undone_str = if blank_length > 0 {
-            format!("{}{}", bar_left, bar.repeat(blank_length as usize - 1))
-        } else {
-            "".to_owned()
-        };
+        let (bar_done_str, bar_undone_str) =
+            du_bars(bar_done_length as usize, bar_undone_length as usize);
 
         write!(
             &mut self.stdout,
-            "\r{completed}/{total} {length} {percent}% {rate}/s{miss} {process_bar}{blank}  ",
+            "\r{completed}/{total} {length} {percent}% {rate}/s{miss} {bar_done}{bar_undone}  ",
             completed = Red.bold().paint(completed_str),
             total = Green.bold().paint(total_str),
             length = Red.bold().paint(length_str),
             percent = Yellow.bold().paint(percent_str),
             rate = Blue.bold().paint(rate_str),
             miss = " ".repeat(miss),
-            process_bar = Red.bold().paint(bar_done_str),
-            blank = Black.bold().paint(bar_undone_str),
+            bar_done = Red.bold().paint(bar_done_str),
+            bar_undone = Black.bold().paint(bar_undone_str),
         )?;
 
         self.stdout.flush()?;

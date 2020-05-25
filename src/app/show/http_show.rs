@@ -1,7 +1,7 @@
 use std::io::{stdout, Stdout, Write};
 
 use crate::{
-    app::show::common::bars,
+    app::show::common::du_bars,
     common::{
         colors::{Black, Blue, Cyan, Green, Red, Yellow},
         errors::Result,
@@ -83,37 +83,23 @@ impl HttpShower {
 
         let terminal_width = terminal_width();
         let bar_length = terminal_width - info_length as u64 - 3;
-        let process_bar_length = (bar_length as f64 * percent) as u64;
-        let blank_length = bar_length - process_bar_length;
+        let bar_done_length = (bar_length as f64 * percent) as u64;
+        let bar_undone_length = bar_length - bar_done_length;
 
-        let (bar, bar_right, bar_left) = bars();
-
-        let bar_done_str = if process_bar_length > 0 {
-            format!(
-                "{}{}",
-                bar.repeat((process_bar_length - 1) as usize),
-                bar_right
-            )
-        } else {
-            "".to_owned()
-        };
-        let bar_undone_str = if blank_length > 0 {
-            format!("{}{}", bar_left, bar.repeat(blank_length as usize - 1))
-        } else {
-            "".to_owned()
-        };
+        let (bar_done_str, bar_undone_str) =
+            du_bars(bar_done_length as usize, bar_undone_length as usize);
 
         write!(
             &mut self.stdout,
-            "\r{completed}/{total} {percent}% {rate}/s eta: {eta}{miss} {process_bar}{blank}  ",
+            "\r{completed}/{total} {percent}% {rate}/s eta: {eta}{miss} {bar_done}{bar_undone}  ",
             completed = Red.bold().paint(completed_str),
             total = Green.bold().paint(total_str),
             percent = Yellow.bold().paint(percent_str),
             rate = Blue.bold().paint(rate_str),
             eta = Cyan.bold().paint(eta_str),
             miss = " ".repeat(miss),
-            process_bar = Red.bold().paint(bar_done_str),
-            blank = Black.bold().paint(bar_undone_str),
+            bar_done = Red.bold().paint(bar_done_str),
+            bar_undone = Black.bold().paint(bar_undone_str),
         )?;
 
         self.stdout.flush()?;
