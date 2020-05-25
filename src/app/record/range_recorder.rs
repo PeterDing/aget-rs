@@ -81,12 +81,10 @@ impl RangeRecorder {
 
             assert!(
                 begin <= end,
-                format!(
-                    "Bug: `begin > end` in an pair of {}. : {} > {}",
-                    self.file_name().unwrap_or(""),
-                    begin,
-                    end
-                )
+                "Bug: `begin > end` in an pair of {}. : {} > {}",
+                self.file_name().unwrap_or(""),
+                begin,
+                end
             );
 
             pairs.push((begin, end));
