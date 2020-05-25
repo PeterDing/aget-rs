@@ -373,9 +373,10 @@ impl RangeRequestTask {
         }
         let resp = resp.unwrap();
 
+        let RangePair { begin, end } = pair;
         let length = pair.length();
-        let mut count = 0;
-        let mut offset = pair.begin;
+        let mut count = 0u64;
+        let mut offset = begin;
 
         // Set timeout for reading
         let mut resp = resp.fuse();
@@ -395,7 +396,7 @@ impl RangeRequestTask {
                                 // The pair is a closed interval
                                 let pr = RangePair::new(offset, offset + len as u64 - 1);
                                 if let Err(err) = self.sender.send((pr, chunk)).await {
-                                    let pr = RangePair::new(offset, pair.end);
+                                    let pr = RangePair::new(offset, end);
                                     self.stack.push(pr);
                                     return Err(Error::InnerError(format!(
                                         "Error at `http::RangeRequestTask`: Sender error: {:?}",
@@ -406,7 +407,7 @@ impl RangeRequestTask {
                                 count += len as u64;
                             }
                             Err(err) => {
-                                let pr = RangePair::new(offset, pair.end);
+                                let pr = RangePair::new(offset, end);
                                 self.stack.push(pr);
                                 return Err(err.into());
                             }
@@ -417,6 +418,8 @@ impl RangeRequestTask {
                 }
                 _ = tick.next() => {
                     if fire {
+                        let pr = RangePair::new(offset, end);
+                        self.stack.push(pr);
                         return Err(Error::Timeout);
                     } else {
                         fire = true;
@@ -427,7 +430,7 @@ impl RangeRequestTask {
 
         // Check range length whether is equal to the length of all received chunk
         if count != length {
-            let pr = RangePair::new(offset, pair.end);
+            let pr = RangePair::new(offset, end);
             self.stack.push(pr);
             Err(Error::UncompletedRead)
         } else {
