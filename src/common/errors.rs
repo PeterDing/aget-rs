@@ -38,6 +38,9 @@ pub enum Error {
     #[error("IO: Unexpected EOF")]
     UnexpectedEof,
 
+    #[error("Procedure timeout")]
+    Timeout,
+
     // For Network
     #[error("Network error: {0}")]
     NetError(String),
