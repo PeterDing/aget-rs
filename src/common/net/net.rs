@@ -110,6 +110,7 @@ pub async fn redirect(
     loop {
         let req = client
             .request(method.clone(), uri.clone())
+            .set_header_if_none("Accept", "*/*") // set accept if none
             .set_header(header::RANGE, "bytes=0-1");
 
         let resp = if let Some(d) = data.clone() {
@@ -134,16 +135,17 @@ pub async fn redirect(
 }
 
 /// Get the content length of the resource
-pub async fn content_length(
+pub async fn redirect_and_contentlength(
     client: &HttpClient,
     method: Method,
     uri: Uri,
     data: Option<Bytes>,
-) -> Result<ContentLengthValue> {
+) -> Result<(Uri, ContentLengthValue)> {
     let mut uri = uri;
     loop {
         let req = client
             .request(method.clone(), uri.clone())
+            .set_header_if_none("Accept", "*/*") // set accept if none
             .set_header(header::RANGE, "bytes=0-1");
 
         let resp = if let Some(d) = data.clone() {
@@ -166,7 +168,7 @@ pub async fn content_length(
                 if let Ok(s) = h.to_str() {
                     if let Some(index) = s.find("/") {
                         if let Ok(length) = &s[index + 1..].parse::<u64>() {
-                            return Ok(ContentLengthValue::RangeLength(length.clone()));
+                            return Ok((uri, ContentLengthValue::RangeLength(length.clone())));
                         }
                     }
                 }
@@ -174,14 +176,14 @@ pub async fn content_length(
             if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
                 if let Ok(s) = h.to_str() {
                     if let Ok(length) = s.parse::<u64>() {
-                        return Ok(ContentLengthValue::DirectLength(length.clone()));
+                        return Ok((uri, ContentLengthValue::DirectLength(length.clone())));
                     }
                 }
             }
             break;
         }
     }
-    Ok(ContentLengthValue::NoLength)
+    Ok((uri, ContentLengthValue::NoLength))
 }
 
 /// Send a request
@@ -194,10 +196,14 @@ pub async fn request(
 ) -> Result<RClientResponse> {
     let mut uri = uri;
     loop {
-        let mut req = client.request(method.clone(), uri.clone());
+        let mut req = client
+            .request(method.clone(), uri.clone())
+            .set_header_if_none("Accept", "*/*"); // set accept if none
 
         if let Some(RangePair { begin, end }) = range {
             req = req.set_header(header::RANGE, format!("bytes={}-{}", begin, end));
+        } else {
+            req = req.set_header(header::RANGE, format!("bytes=0-"));
         }
 
         let resp = if let Some(d) = data.clone() {
