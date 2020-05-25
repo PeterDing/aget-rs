@@ -227,6 +227,14 @@ impl Args for CmdArgs {
         self.matches
             .value_of("type")
             .map(|i| match i.to_lowercase().as_str() {
+                "auto" => {
+                    let uri = self.uri();
+                    if uri.path().to_lowercase().ends_with(".m3u8") {
+                        TaskType::M3U8
+                    } else {
+                        TaskType::HTTP
+                    }
+                }
                 "http" => TaskType::HTTP,
                 "m3u8" => TaskType::M3U8,
                 _ => panic!(format!("{:?}", Error::UnsupportedTask(i.to_string()))),
