@@ -180,7 +180,12 @@ impl Args for CmdArgs {
             self.matches
                 .value_of("timeout")
                 .map(|i| i.parse::<u64>().unwrap())
-                .unwrap_or(60),
+                .unwrap_or({
+                    match self.task_type() {
+                        TaskType::HTTP => 60,
+                        TaskType::M3U8 => 30,
+                    }
+                }),
         )
     }
 

@@ -80,7 +80,6 @@ pub fn build_app<'a>() -> ClapApp<'a, 'a> {
             Arg::with_name("timeout")
                 .short("t")
                 .long("timeout")
-                .default_value("60")
                 .multiple(false)
                 .takes_value(true)
                 .help("Timeout(seconds) of request")
