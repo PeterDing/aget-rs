@@ -4,25 +4,39 @@ dist: xenial
 
 matrix:
   include:
-    # Stable channel.
-    - os: linux
-      rust: stable
-      env: TARGET=x86_64-unknown-linux-gnu
-
-    - os: osx
-      rust: stable
-      env: TARGET=x86_64-apple-darwin
-
-    # Code formatting check
+    # Build on linux
     - os: linux
       rust: nightly
-      # skip the global install step
-      install:
-        - cargo install --debug --force rustfmt-nightly
-      script: cargo fmt -- --check
+      env:
+        - TARGET=x86_64-unknown-linux-gnu
+        - DEPLOY=true
+        - TASK=build
 
+    # Build on osx
+    - os: osx
+      rust: nightly
+      env:
+        - TARGET=x86_64-apple-darwin
+        - DEPLOY=true
+        - TASK=build
+
+    # Code formatting check
+    # - os: linux
+    #   rust: nightly
+    #   env:
+    #     - TARGET=x86_64-unknown-linux-gnu
+    #     - TASK=fmt-check
+    #   # skip the global install step
+    #   install:
+    #     - rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
+    #   script: cargo fmt -- --check
+
+    # Test benchmark
     - os: linux
-      rust: stable
+      rust: nightly
+      env:
+        - TARGET=x86_64-unknown-linux-gnu
+        - TASK=benchmark
       install: cargo build
       script: bash ci/benchmark.bash
 
@@ -75,7 +89,7 @@ deploy:
     # deploy only if we push a tag
     tags: true
     # deploy only on stable channel that has TARGET env variable sets
-    condition: $TRAVIS_RUST_VERSION = stable && $TARGET != ""
+    condition: $DEPLOY = true && $TARGET != ""
 
 notifications:
   email:

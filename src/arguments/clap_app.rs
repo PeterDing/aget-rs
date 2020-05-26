@@ -1,6 +1,6 @@
 use clap::{crate_name, crate_version, App as ClapApp, AppSettings, Arg};
 
-pub fn build_app() -> ClapApp<'static, 'static> {
+pub fn build_app<'a>() -> ClapApp<'a, 'a> {
     ClapApp::new(crate_name!())
         .version(crate_version!())
         .global_setting(AppSettings::ColoredHelp)
@@ -10,91 +10,117 @@ pub fn build_app() -> ClapApp<'static, 'static> {
         .about("Aget - Asynchronous Downloader")
         .arg(
             Arg::with_name("URL")
-                .help("URL to request.")
-                .multiple(false)
                 .required(true)
-                .empty_values(false),
+                .empty_values(false)
+                .multiple(false)
+                .help("URL to request.")
         )
         .arg(
             Arg::with_name("method")
                 .short("X")
                 .long("method")
-                .help("Request method, e.g. GET, POST.")
                 .default_value("GET")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("Request method, e.g. GET, POST.")
         )
         .arg(
             Arg::with_name("header")
                 .short("H")
                 .long("header")
-                .help("Request headers, e.g. -H \"User-Agent: aget\".")
                 .multiple(true)
-                .takes_value(true),
+                .takes_value(true)
+                .help("Request headers, e.g. -H \"User-Agent: aget\".")
         )
         .arg(
             Arg::with_name("data")
                 .short("d")
                 .long("data")
-                .help("Request with POST method with the data, e.g. -d \"a=b\".")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("Request with POST method with the data, e.g. -d \"a=b\".")
         )
         .arg(
             Arg::with_name("out")
                 .short("o")
                 .long("out")
-                .help("The path of output for the request e.g. -o \"/path/to/file\".")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("The path of output for the request e.g. -o \"/path/to/file\".")
         )
         .arg(
             Arg::with_name("concurrency")
                 .short("s")
                 .long("concurrency")
-                .help("The number of concurrency request e.g. -s 10")
                 .default_value("10")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("The number of concurrency request e.g. -s 10")
         )
         .arg(
-            Arg::with_name("chunk-length")
+            Arg::with_name("chunk-size")
                 .short("k")
-                .long("chunk-length")
-                .help("The interval length of each concurrent request e.g. -k 100k")
+                .long("chunk-size")
                 .default_value("1m")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("The interval length of each concurrent request e.g. -k 100k")
         )
+        // `awc` does not support proxy
+        // .arg(
+        //     Arg::with_name("proxy")
+        //         .long("proxy")
+        //         .multiple(false)
+        //         .takes_value(true)
+        //         .help("proxy (http/https/socks4/socks5) e.g. -p http://localhost:1024")
+        // )
+        //
+        // Request timeout is the total time before a response must be received.
         .arg(
             Arg::with_name("timeout")
                 .short("t")
                 .long("timeout")
+                .multiple(false)
+                .takes_value(true)
                 .help("Timeout(seconds) of request")
+        )
+        .arg(
+            Arg::with_name("dns-timeout")
+                .short("n")
+                .long("dns-timeout")
                 .default_value("10")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("DNS Timeout(seconds) of request")
         )
         .arg(
             Arg::with_name("max-retries")
                 .long("max-retries")
-                .help("The maximum times of retring")
                 .default_value("5")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("The maximum times of retring")
         )
         .arg(
             Arg::with_name("retry-wait")
                 .long("retry-wait")
-                .help("The seconds between retries")
                 .default_value("0")
                 .multiple(false)
-                .takes_value(true),
+                .takes_value(true)
+                .help("The seconds between retries")
+        )
+        .arg(
+            Arg::with_name("type")
+                .long("type")
+                .default_value("auto")
+                .multiple(false)
+                .takes_value(true)
+                .help("Task type, auto/http/m3u8")
         )
         .arg(
             Arg::with_name("debug")
                 .long("debug")
-                .help("Debug output. Print all trackback for debugging"),
+                .help("Debug output. Print all trackback for debugging")
         )
         .arg(
             Arg::with_name("quiet")
