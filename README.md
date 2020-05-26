@@ -8,6 +8,8 @@ It requests a resource with a number of concurrent asynchronous request in a sin
 
 Especially, the concurrent amount can be any positive number as your wish.
 
+`aget-rs` supports to download a **HTTP/S** link and a **M3U8** video link.
+
 ## Dependences
 
 Aget-rs needs `openssl > 1.0.2g`
@@ -122,40 +124,25 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 
 ```
 USAGE:
-    ag <URL>
+    ag [OPTIONS] <URL>
 
 OPTIONS:
-    -X, --method <method>                Request method,
-                                         e.g. GET, POST.
-                                         [default: GET]
-
-    -H, --header <header>...             Request headers,
-                                         e.g. -H "User-Agent: aget".
-
-    -d, --data <data>                    Request with POST method with the data,
-                                         e.g. -d "a=b".
-
-    -o, --out <out>                      The path of output for the request,
-                                         e.g. -o "/path/to/file".
-
-    -s, --concurrency <concurrency>      The number of concurrent request,
-                                         e.g. -s 10
-                                         [default: 10]
-
-    -k, --chunk-length <chunk-length>    The interval length of each concurrent request,
-                                         e.g. -k 100k
-                                         [default: 1m]
-
-        --max-retries <max-retries>      The maximum times of retring [default: 5]
-        --retry-wait <retry-wait>        The seconds between retries [default: 0]
-
-        --debug                          Debug output. Print all trackback for debugging
-
-        --quiet                          Quiet mode. Don't show progress bar and task information. 
-                                         But still show the error information
-
-    -h, --help                           Print this help message.
-    -V, --version                        Show version information.
+    -X, --method <method>              Request method, e.g. GET, POST. [default: GET]
+    -H, --header <header>...           Request headers, e.g. -H "User-Agent: aget".
+    -d, --data <data>                  Request with POST method with the data, e.g. -d "a=b".
+    -o, --out <out>                    The path of output for the request e.g. -o "/path/to/file".
+    -s, --concurrency <concurrency>    The number of concurrency request e.g. -s 10 [default: 10]
+    -k, --chunk-size <chunk-size>      The interval length of each concurrent request e.g. -k 100k [default: 1m]
+    -t, --timeout <timeout>            Timeout(seconds) of request [default: 60]
+    -n, --dns-timeout <dns-timeout>    DNS Timeout(seconds) of request [default: 10]
+        --max-retries <max-retries>    The maximum times of retring [default: 5]
+        --retry-wait <retry-wait>      The seconds between retries [default: 0]
+        --type <type>                  Task type, auto/http/m3u8 [default: auto]
+        --debug                        Debug output. Print all trackback for debugging
+        --quiet                        Quiet mode. Don't show progress bar and task information. But still show the
+                                       error information
+    -h, --help                         Print this help message.
+    -V, --version                      Show version information.
 
 ARGS:
     <URL>    URL to request.
