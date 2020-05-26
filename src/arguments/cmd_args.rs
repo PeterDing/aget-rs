@@ -7,7 +7,7 @@ use std::{
 #[cfg(windows)]
 use ansi_term::enable_ansi_support;
 
-use clap::ArgMatches;
+use clap::{crate_version, ArgMatches};
 
 use percent_encoding::percent_decode;
 
@@ -98,7 +98,7 @@ impl Args for CmdArgs {
 
     /// Request headers
     fn headers(&self) -> Vec<(String, String)> {
-        if let Some(headers) = self.matches.values_of("header") {
+        let mut headers = if let Some(headers) = self.matches.values_of("header") {
             parse_headers(headers)
                 .unwrap()
                 .into_iter()
@@ -106,7 +106,26 @@ impl Args for CmdArgs {
                 .collect::<Vec<(String, String)>>()
         } else {
             vec![]
+        };
+
+        // Add default headers
+        let default_headers = vec![(
+            "user-agent".to_owned(),
+            format!("aget/{}", crate_version!()),
+        )];
+        for (dk, dv) in default_headers {
+            let mut has = false;
+            for (k, _) in headers.iter() {
+                if k.to_lowercase() == dk {
+                    has = true;
+                    break;
+                }
+            }
+            if !has {
+                headers.push((dk, dv));
+            }
         }
+        headers
     }
 
     /// Set proxy througth arg or environment variable
