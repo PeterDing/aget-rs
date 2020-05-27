@@ -172,11 +172,11 @@ impl HttpHandler {
             let ConnectorConfig { dns_timeout, .. } = self.connector_config;
             let client = build_http_client(
                 hds.as_ref(),
-                Duration::from_secs(0),
-                dns_timeout,
-                Duration::from_secs(0),
-                Duration::from_secs(0),
-                true, // Disable rediect
+                Duration::from_secs(60), // timeout for waiting the begin of response
+                dns_timeout,             // dns timeout
+                Duration::from_secs(60), // keep alive
+                Duration::from_secs(0),  // lifetime
+                true,                    // Disable rediect
             );
             let mut task = DirectRequestTask::new(
                 client,
@@ -301,6 +301,7 @@ impl DirectRequestTask {
                     }
                 }
             }
+            break;
         }
     }
 }
