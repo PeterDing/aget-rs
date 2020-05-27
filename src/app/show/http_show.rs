@@ -58,7 +58,11 @@ impl HttpShower {
     }
 
     pub fn print_status(&mut self, completed: u64, total: u64, rate: f64, eta: u64) -> Result<()> {
-        let percent = completed as f64 / total as f64;
+        let percent = if total != 0 {
+            completed as f64 / total as f64
+        } else {
+            0.0
+        };
 
         let completed_str = completed.human_readable();
         let total_str = total.human_readable();
@@ -83,11 +87,14 @@ impl HttpShower {
 
         let terminal_width = terminal_width();
         let bar_length = terminal_width - info_length as u64 - 3;
-        let bar_done_length = (bar_length as f64 * percent) as u64;
-        let bar_undone_length = bar_length - bar_done_length;
 
-        let (bar_done_str, bar_undone_str) =
-            du_bars(bar_done_length as usize, bar_undone_length as usize);
+        let (bar_done_str, bar_undone_str) = if total != 0 {
+            let bar_done_length = (bar_length as f64 * percent) as u64;
+            let bar_undone_length = bar_length - bar_done_length;
+            du_bars(bar_done_length as usize, bar_undone_length as usize)
+        } else {
+            (" ".repeat(bar_length as usize), "".to_owned())
+        };
 
         write!(
             &mut self.stdout,
@@ -98,8 +105,16 @@ impl HttpShower {
             rate = Blue.bold().paint(rate_str),
             eta = Cyan.bold().paint(eta_str),
             miss = " ".repeat(miss),
-            bar_done = Red.bold().paint(bar_done_str),
-            bar_undone = Black.bold().paint(bar_undone_str),
+            bar_done = if total != 0 {
+                Red.bold().paint(bar_done_str).to_string()
+            } else {
+                bar_done_str
+            },
+            bar_undone = if total != 0 {
+                Black.bold().paint(bar_undone_str).to_string()
+            } else {
+                bar_undone_str
+            }
         )?;
 
         self.stdout.flush()?;
