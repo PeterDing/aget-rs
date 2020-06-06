@@ -6,6 +6,7 @@ mod common;
 
 mod app;
 mod arguments;
+mod config;
 mod features;
 
 use std::{thread, time::Duration};

@@ -21,11 +21,13 @@ use crate::{
         net::{net::parse_headers, Method, Uri},
         tasks::TaskType,
     },
+    config::Config,
     features::args::Args,
 };
 
 pub struct CmdArgs {
     matches: ArgMatches<'static>,
+    config: Config,
 }
 
 impl CmdArgs {
@@ -36,7 +38,10 @@ impl CmdArgs {
         let args = env::args();
         let inner = build_app();
         let matches = inner.get_matches_from(args);
-        CmdArgs { matches }
+        CmdArgs {
+            matches,
+            config: Config::new(),
+        }
     }
 }
 
@@ -107,6 +112,19 @@ impl Args for CmdArgs {
         } else {
             vec![]
         };
+
+        for (uk, uv) in self.config.headers.as_ref().unwrap_or(&vec![]) {
+            let mut has = false;
+            for (k, _) in headers.iter() {
+                if k.to_lowercase() == *uk {
+                    has = true;
+                    break;
+                }
+            }
+            if !has {
+                headers.push((uk.to_string(), uv.to_string()));
+            }
+        }
 
         // Add default headers
         let default_headers = vec![(
@@ -182,8 +200,8 @@ impl Args for CmdArgs {
                 .map(|i| i.parse::<u64>().unwrap())
                 .unwrap_or({
                     match self.task_type() {
-                        TaskType::HTTP => 60,
-                        TaskType::M3U8 => 30,
+                        TaskType::HTTP => self.config.timeout.unwrap_or(60),
+                        TaskType::M3U8 => self.config.timeout.unwrap_or(30),
                     }
                 }),
         )
@@ -194,7 +212,7 @@ impl Args for CmdArgs {
             self.matches
                 .value_of("dns-timeout")
                 .map(|i| i.parse::<u64>().unwrap())
-                .unwrap_or(10),
+                .unwrap_or(self.config.dns_timeout.unwrap_or(10)),
         )
     }
 
@@ -222,7 +240,7 @@ impl Args for CmdArgs {
         self.matches
             .value_of("concurrency")
             .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(10)
+            .unwrap_or(self.config.concurrency.unwrap_or(10))
     }
 
     /// The chunk size of each concurrency for http task
@@ -230,7 +248,13 @@ impl Args for CmdArgs {
         self.matches
             .value_of("chunk-size")
             .map(|i| i.literal_number().unwrap())
-            .unwrap_or(1024 * 500) // 500k
+            .unwrap_or(
+                self.config
+                    .chunk_size
+                    .as_ref()
+                    .map(|i| i.as_str().literal_number().unwrap())
+                    .unwrap_or(1024 * 1024 * 50),
+            ) // 50m
     }
 
     /// The number of retry of a task, default is 5
@@ -238,7 +262,7 @@ impl Args for CmdArgs {
         self.matches
             .value_of("retries")
             .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(5)
+            .unwrap_or(self.config.retries.unwrap_or(5))
     }
 
     /// The internal of each retry, default is zero
@@ -246,7 +270,7 @@ impl Args for CmdArgs {
         self.matches
             .value_of("retry_wait")
             .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(0)
+            .unwrap_or(self.config.retry_wait.unwrap_or(0))
     }
 
     /// Task type
