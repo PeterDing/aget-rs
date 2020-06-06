@@ -153,7 +153,7 @@ ARGS:
 Aget can be configured by a configuration file. The file locates at `~/.config/aget/config`.
 Following options can be set. Aget uses these options as the defaults for each command.
 
-```toml
+```
 headers = [["key", "value"], ...]
 concurrency = ...
 chunk-size = "..."
