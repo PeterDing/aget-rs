@@ -135,7 +135,7 @@ OPTIONS:
     -k, --chunk-size <chunk-size>      The interval length of each concurrent request e.g. -k 100k [default: 1m]
     -t, --timeout <timeout>            Timeout(seconds) of request [default: 60]
     -n, --dns-timeout <dns-timeout>    DNS Timeout(seconds) of request [default: 10]
-        --max-retries <max-retries>    The maximum times of retring [default: 5]
+        --retries <retries>            The maximum times of retring [default: 5]
         --retry-wait <retry-wait>      The seconds between retries [default: 0]
         --type <type>                  Task type, auto/http/m3u8 [default: auto]
         --debug                        Debug output. Print all trackback for debugging
@@ -146,4 +146,31 @@ OPTIONS:
 
 ARGS:
     <URL>    URL to request.
+```
+
+## Configuration
+
+Aget can be configured by a configuration file. The file locates at `~/.config/aget/config`.
+Following options can be set. Aget uses these options as the defaults for each command.
+
+```toml
+headers = [["key", "value"], ...]
+concurrency = ...
+chunk-size = "..."
+timeout = ...
+dns-timeout = ...
+retries = ...
+retry-wait = ...
+```
+
+If the file does not exist, aget will use the default configuration.
+
+```toml
+headers = [["user-agent", "aget/version"]]
+concurrency = 10
+chunk-size = "50m"
+timeout = 60
+dns-timeout = 10
+retries = 5
+retry-wait = 0
 ```
