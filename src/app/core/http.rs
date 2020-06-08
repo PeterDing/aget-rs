@@ -350,6 +350,9 @@ impl RangeRequestTask {
                     print_err!(format!("RangeRequestTask {}: InnerError", self.id), msg);
                     System::current().stop();
                 }
+                Err(err @ Error::Timeout) => {
+                    debug!(err); // Missing Timeout at runtime
+                }
                 Err(err) => {
                     print_err!(format!("RangeRequestTask {}: error", self.id), err);
                 }

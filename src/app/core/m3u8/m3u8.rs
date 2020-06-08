@@ -209,6 +209,9 @@ impl RequestTask {
                         print_err!(format!("RequestTask {}: InnerError", self.id), msg);
                         System::current().stop();
                     }
+                    Err(err @ Error::Timeout) => {
+                        debug!(err);  // Missing Timeout at runtime
+                    }
                     Err(err) => {
                         print_err!(format!("RequestTask {}: error", self.id), err);
                         delay_for(Duration::from_secs(1)).await;
