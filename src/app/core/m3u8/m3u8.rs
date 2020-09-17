@@ -213,7 +213,7 @@ impl RequestTask {
                         debug!(err);  // Missing Timeout at runtime
                     }
                     Err(err) => {
-                        print_err!(format!("RequestTask {}: error", self.id), err);
+                        debug!(format!("RequestTask {}: error", self.id), err);
                         delay_for(Duration::from_secs(1)).await;
                     }
                     _ => break,

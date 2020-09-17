@@ -354,7 +354,7 @@ impl RangeRequestTask {
                     debug!(err); // Missing Timeout at runtime
                 }
                 Err(err) => {
-                    print_err!(format!("RangeRequestTask {}: error", self.id), err);
+                    debug!(format!("RangeRequestTask {}: error", self.id), err);
                 }
                 _ => {}
             }
