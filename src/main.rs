@@ -9,7 +9,7 @@ mod arguments;
 mod config;
 mod features;
 
-use std::{thread, time::Duration};
+use std::{process::exit, thread, time::Duration};
 
 use app::core::{http::HttpHandler, m3u8::M3u8Handler};
 use arguments::cmd_args::CmdArgs;
@@ -64,7 +64,10 @@ fn main() {
             continue;
         } else {
             // Success
-            break;
+            return;
         }
     }
+
+    // All retries fail
+    exit(1);
 }
