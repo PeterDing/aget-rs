@@ -66,7 +66,7 @@ pub fn build_http_client(
         .conn_lifetime(lifetime)
         .finish();
 
-    let mut builder = HttpClient::build()
+    let mut builder = HttpClient::builder()
         .connector(conn)
         // Set request timeout
         //
