@@ -29,8 +29,8 @@ actix-rt = "1"
 # for http
 http = "0.2"
 url = "2"
-awc = { version = "2.0.0", features = ["openssl"] }
-actix-http = { version = "2.0.0", features = ["compress"] }
+awc = { version = "2", features = ["openssl"] }
+actix-http = { version = "2", features = ["compress"] }
 
 # for errors
 thiserror = "1.0"
