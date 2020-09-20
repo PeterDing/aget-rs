@@ -210,7 +210,7 @@ impl RequestTask {
                         System::current().stop();
                     }
                     Err(err @ Error::Timeout) => {
-                        debug!(err);  // Missing Timeout at runtime
+                        debug!(err); // Missing Timeout at runtime
                     }
                     Err(err) => {
                         debug!(format!("RequestTask {}: error", self.id), err);
