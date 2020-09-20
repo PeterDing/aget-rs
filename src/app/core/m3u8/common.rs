@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use m3u8_rs::{parse_playlist_res, playlist::Playlist};
+use m3u8_rs::{
+    parse_playlist_res,
+    playlist::{Key, Playlist},
+};
 
 use crate::common::{
     bytes::{
@@ -95,11 +98,20 @@ pub async fn get_m3u8(
             }
             Ok(Playlist::MediaPlaylist(pl)) => {
                 let mut index = pl.media_sequence as u64;
+                let mut key_m: Option<Key> = None;
                 for segment in &pl.segments {
                     let seg_url = base_url.join(&segment.uri)?;
                     let seg_uri: Uri = seg_url.as_str().parse()?;
 
-                    let (key, iv) = if let Some(key) = &segment.key {
+                    // In `pl.segment`, the same key will not repeat, if previous key appears.
+                    let segment_key = if segment.key.is_none() && key_m.is_some() {
+                        &key_m
+                    } else {
+                        key_m = segment.key.clone();
+                        &segment.key
+                    };
+
+                    let (key, iv) = if let Some(key) = segment_key {
                         let iv = if let Some(iv) = &key.iv {
                             let mut i = [0; 16];
                             let buf = decode_hex(&iv[2..])?;
