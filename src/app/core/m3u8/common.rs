@@ -28,26 +28,6 @@ pub struct M3u8Segment {
     pub iv: Option<[u8; 16]>,
 }
 
-impl M3u8Segment {
-    pub fn new(
-        index: u64,
-        method: Method,
-        uri: Uri,
-        data: Option<Bytes>,
-        key: Option<[u8; 16]>,
-        iv: Option<[u8; 16]>,
-    ) -> M3u8Segment {
-        M3u8Segment {
-            index,
-            method,
-            uri,
-            data,
-            key,
-            iv,
-        }
-    }
-}
-
 pub type M3u8SegmentList = Vec<M3u8Segment>;
 
 pub type SharedM3u8SegmentList = SharedVec<M3u8Segment>;
@@ -141,14 +121,14 @@ pub async fn get_m3u8(
                         (None, None)
                     };
 
-                    list.push(M3u8Segment::new(
-                        idx,
-                        Method::GET,
-                        seg_uri.clone(),
-                        None,
+                    list.push(M3u8Segment {
+                        index: idx,
+                        method: Method::GET,
+                        uri: seg_uri.clone(),
+                        data: None,
                         key,
                         iv,
-                    ));
+                    });
                     index += 1;
                     idx += 1;
                 }
