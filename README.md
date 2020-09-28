@@ -156,11 +156,11 @@ Following options can be set. Aget uses these options as the defaults for each c
 ```
 headers = [["key", "value"], ...]
 concurrency = ...
-chunk-size = "..."
+chunk_size = "..."
 timeout = ...
-dns-timeout = ...
+dns_timeout = ...
 retries = ...
-retry-wait = ...
+retry_wait = ...
 ```
 
 If the file does not exist, aget will use the default configuration.
@@ -168,9 +168,9 @@ If the file does not exist, aget will use the default configuration.
 ```toml
 headers = [["user-agent", "aget/version"]]
 concurrency = 10
-chunk-size = "50m"
+chunk_size = "50m"
 timeout = 60
-dns-timeout = 10
+dns_timeout = 10
 retries = 5
-retry-wait = 0
+retry_wait = 0
 ```
