@@ -5,7 +5,7 @@ use crate::common::{
     errors::{Error, Result},
     net::{
         header, ClientResponse, Connector, ContentLengthValue, HttpClient, Method, RClientResponse,
-        Uri,
+        Uri, Url,
     },
     range::RangePair,
 };
@@ -157,7 +157,8 @@ pub async fn redirect_and_contentlength(
         let headers = resp.headers();
         if resp.status().is_redirection() {
             if let Some(location) = headers.get(header::LOCATION) {
-                uri = location.to_str()?.parse()?;
+                let uri_str = location.to_str()?;
+                uri = join_uri(&uri, uri_str)?;
                 continue;
             } else {
                 return Err(Error::NoLocation(format!("{}", uri)));
@@ -214,7 +215,8 @@ pub async fn request(
 
         if resp.status().is_redirection() {
             if let Some(location) = resp.headers().get(header::LOCATION) {
-                uri = location.to_str()?.parse()?;
+                let uri_str = location.to_str()?;
+                uri = join_uri(&uri, uri_str)?;
                 continue;
             } else {
                 return Err(Error::NoLocation(format!("{}", uri)));
@@ -224,4 +226,14 @@ pub async fn request(
             return Ok(resp);
         }
     }
+}
+
+fn join_uri(base_uri: &Uri, uri: &str) -> Result<Uri> {
+    let new_uri: Uri = if uri.starts_with("/") {
+        let base_url = Url::parse(&format!("{}", base_uri))?;
+        base_url.join(uri)?.as_str().parse()?
+    } else {
+        uri.parse()?
+    };
+    Ok(new_uri)
 }
