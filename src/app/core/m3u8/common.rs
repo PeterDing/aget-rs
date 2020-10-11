@@ -13,8 +13,8 @@ use crate::common::{
     errors::{Error, Result},
     list::SharedVec,
     net::{
-        net::{redirect, request},
-        HttpClient, Method, Uri, Url,
+        net::{join_uri, redirect, request},
+        HttpClient, Method, Uri,
     },
 };
 
@@ -55,7 +55,7 @@ pub async fn get_m3u8(
             continue;
         }
 
-        let base_url = Url::parse(&format!("{:?}", u))?;
+        let base_uri = u.clone();
 
         // Read m3u8 content
         let mut resp = request(client, method.clone(), u.clone(), data.clone(), None).await?;
@@ -71,8 +71,7 @@ pub async fn get_m3u8(
             Ok(Playlist::MasterPlaylist(mut pl)) => {
                 pl.variants.reverse();
                 for variant in &pl.variants {
-                    let url = base_url.join(&variant.uri)?;
-                    let uri: Uri = url.as_str().parse()?;
+                    let uri = join_uri(&base_uri, &variant.uri)?;
                     uris.push(uri);
                 }
             }
@@ -80,8 +79,7 @@ pub async fn get_m3u8(
                 let mut index = pl.media_sequence as u64;
                 let mut key_m: Option<Key> = None;
                 for segment in &pl.segments {
-                    let seg_url = base_url.join(&segment.uri)?;
-                    let seg_uri: Uri = seg_url.as_str().parse()?;
+                    let seg_uri = join_uri(&base_uri, &segment.uri)?;
 
                     // In `pl.segment`, the same key will not repeat, if previous key appears.
                     let segment_key = if segment.key.is_none() && key_m.is_some() {
@@ -104,8 +102,7 @@ pub async fn get_m3u8(
                             iv
                         };
                         if let Some(uri) = &key.uri {
-                            let key_url = base_url.join(&uri)?;
-                            let key_uri: Uri = key_url.as_str().parse()?;
+                            let key_uri = join_uri(&base_uri, &uri)?;
                             if let Some(k) = keymap.get(&key_uri) {
                                 (Some(*k), Some(iv))
                             } else {
