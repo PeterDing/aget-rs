@@ -228,7 +228,7 @@ pub async fn request(
     }
 }
 
-fn join_uri(base_uri: &Uri, uri: &str) -> Result<Uri> {
+pub fn join_uri(base_uri: &Uri, uri: &str) -> Result<Uri> {
     let new_uri: Uri = if uri.starts_with("/") {
         let base_url = Url::parse(&format!("{}", base_uri))?;
         base_url.join(uri)?.as_str().parse()?
