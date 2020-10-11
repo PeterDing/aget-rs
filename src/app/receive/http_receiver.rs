@@ -23,12 +23,16 @@ pub struct HttpReceiver {
 }
 
 impl HttpReceiver {
-    pub fn new<P: AsRef<Path>>(output: P, direct: bool) -> Result<HttpReceiver> {
+    pub fn new<P: AsRef<Path>>(
+        output: P,
+        direct: bool,
+        content_length: u64,
+    ) -> Result<HttpReceiver> {
         let mut outputfile = File::new(&output, true)?;
         outputfile.open()?;
 
         let (rangerecorder, total, completed) = if direct {
-            (None, 0, 0)
+            (None, content_length, 0)
         } else {
             let mut rangerecorder =
                 RangeRecorder::new(&*(output.as_ref().to_string_lossy() + RECORDER_FILE_SUFFIX))?;
@@ -71,7 +75,7 @@ impl HttpReceiver {
         let completed = self.ratestatus.total();
         let rate = self.ratestatus.rate();
 
-        let eta = if self.rangerecorder.is_some() {
+        let eta = if self.rangerecorder.is_some() || self.total != 0 {
             let remains = total - completed;
             // rate > 1.0 for overflow
             if remains > 0 && rate > 1.0 {

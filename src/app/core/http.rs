@@ -116,6 +116,14 @@ impl HttpHandler {
 
         self.uri = uri;
 
+        let content_length = {
+            match cl {
+                ContentLengthValue::DirectLength(l) => l,
+                ContentLengthValue::RangeLength(l) => l,
+                _ => 0,
+            }
+        };
+
         // 2. Compare recorded content length with the above one
         debug!("HttpHandler: compare recorded content length");
         let mut direct = true;
@@ -222,7 +230,7 @@ impl HttpHandler {
 
         // 5. Create receiver
         debug!("HttpHandler: create receiver");
-        let mut httpreceiver = HttpReceiver::new(&self.output, direct)?;
+        let mut httpreceiver = HttpReceiver::new(&self.output, direct, content_length)?;
         httpreceiver.start(receiver).await?;
 
         // 6. Task succeeds. Remove rangerecorder file
