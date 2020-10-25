@@ -25,8 +25,8 @@ build: false
 
 test_script:
   - cargo test --target %TARGET% --verbose
-  - cargo run --target %TARGET% -- http://cdimage.ubuntu.com/ubuntu-base/releases/18.04/release/ubuntu-base-18.04-base-amd64.tar.gz
-  - ps: Remove-Item –path .\ubuntu*
+  - cargo run --target %TARGET% -- https://github.com/mpv-player/mpv/archive/49d6a1e77d3dba5cf30a2cb9cd05dc6dd6407fb2.zip
+  - ps: Remove-Item –path .\49d6a1e77d3dba5cf30a2cb9cd05dc6dd6407fb2.zip
 
 before_deploy:
   # Generate artifacts for release
