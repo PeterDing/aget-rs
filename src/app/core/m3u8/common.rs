@@ -108,7 +108,13 @@ pub async fn get_m3u8(
                             } else {
                                 let k = get_key(client, Method::GET, key_uri.clone()).await?;
                                 keymap.insert(key_uri.clone(), k);
-                                debug!("Get key, iv", (k, iv));
+                                debug!(
+                                    "Get key, iv",
+                                    (
+                                        std::str::from_utf8_unchecked(&k),
+                                        std::str::from_utf8_unchecked(&iv)
+                                    )
+                                );
                                 (Some(k), Some(iv))
                             }
                         } else {
