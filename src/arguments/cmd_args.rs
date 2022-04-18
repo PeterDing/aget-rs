@@ -1,20 +1,19 @@
 use std::{
-    env, fmt,
+    fmt,
     path::{Path, PathBuf},
     time::Duration,
 };
 
+use clap::Parser;
+
 #[cfg(windows)]
 use ansi_term::enable_ansi_support;
-
-use clap::{crate_version, ArgMatches};
 
 use percent_encoding::percent_decode;
 
 use crate::{
-    arguments::clap_app::build_app,
+    arguments::clap_cli::AgetCli,
     common::{
-        bytes::bytes_type::BytesMut,
         character::escape_nonascii,
         errors::Error,
         liberal::ParseLiteralNumber,
@@ -25,8 +24,10 @@ use crate::{
     features::args::Args,
 };
 
+const DEFAULT_HEADERS: [(&str, &str); 1] = [("user-agent", "aget/0.3.7")];
+
 pub struct CmdArgs {
-    matches: ArgMatches<'static>,
+    cli: AgetCli,
     config: Config,
 }
 
@@ -35,11 +36,8 @@ impl CmdArgs {
         #[cfg(windows)]
         let _ = enable_ansi_support();
 
-        let args = env::args();
-        let inner = build_app();
-        let matches = inner.get_matches_from(args);
         CmdArgs {
-            matches,
+            cli: AgetCli::parse(),
             config: Config::new(),
         }
     }
@@ -48,7 +46,7 @@ impl CmdArgs {
 impl Args for CmdArgs {
     /// Path of output
     fn output(&self) -> PathBuf {
-        if let Some(path) = self.matches.value_of("out") {
+        if let Some(path) = self.cli.out.clone() {
             PathBuf::from(path)
         } else {
             let uri = self.uri();
@@ -68,73 +66,60 @@ impl Args for CmdArgs {
 
     /// Request method for http
     fn method(&self) -> Method {
-        if let Some(method) = self.matches.value_of("method") {
-            match method.to_uppercase().as_str() {
-                "GET" => Method::GET,
-                "POST" => Method::POST,
-                _ => panic!(format!(
-                    "{:?}",
-                    Error::UnsupportedMethod(method.to_string())
-                )),
-            }
-        } else {
-            if self.data().is_some() {
-                Method::POST
-            } else {
-                Method::GET
-            }
+        if self.cli.data.is_some() {
+            return Method::POST;
+        }
+        match self.cli.method.to_uppercase().as_str() {
+            "GET" => Method::GET,
+            "POST" => Method::POST,
+            _ => panic!(
+                "{:?}",
+                Error::UnsupportedMethod(self.cli.method.to_string())
+            ),
         }
     }
 
     /// The uri of a task
     fn uri(&self) -> Uri {
-        self.matches
-            .value_of("URL")
-            .map(escape_nonascii)
-            .unwrap()
+        escape_nonascii(&self.cli.url)
             .parse()
-            .unwrap()
+            .expect("URL is unvalidable")
     }
 
     /// The data for http post request
-    fn data(&self) -> Option<BytesMut> {
-        self.matches.value_of("data").map(|d| BytesMut::from(d))
+    fn data(&self) -> Option<&str> {
+        self.cli.data.as_deref()
     }
 
     /// Request headers
-    fn headers(&self) -> Vec<(String, String)> {
-        let mut headers = if let Some(headers) = self.matches.values_of("header") {
-            parse_headers(headers)
-                .unwrap()
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect::<Vec<(String, String)>>()
+    fn headers(&self) -> Vec<(&str, &str)> {
+        let mut headers = if let Some(ref headers) = self.cli.header {
+            let v = parse_headers(headers.iter().map(|h| h.as_str())).unwrap();
+            v.into_iter().collect::<Vec<(&str, &str)>>()
         } else {
             vec![]
         };
 
-        for (uk, uv) in self.config.headers.as_ref().unwrap_or(&vec![]) {
-            let mut has = false;
-            for (k, _) in headers.iter() {
-                if k.to_lowercase() == *uk {
-                    has = true;
-                    break;
+        if let Some(config_headers) = &self.config.headers {
+            for (uk, uv) in config_headers.iter() {
+                let mut has = false;
+                for (k, _) in headers.iter() {
+                    if k.to_lowercase() == *uk {
+                        has = true;
+                        break;
+                    }
                 }
-            }
-            if !has {
-                headers.push((uk.to_string(), uv.to_string()));
+                if !has {
+                    headers.push((uk, uv));
+                }
             }
         }
 
         // Add default headers
-        let default_headers = vec![(
-            "user-agent".to_owned(),
-            format!("aget/{}", crate_version!()),
-        )];
-        for (dk, dv) in default_headers {
+        for (dk, dv) in DEFAULT_HEADERS {
             let mut has = false;
             for (k, _) in headers.iter() {
-                if k.to_lowercase() == dk {
+                if k.to_lowercase() == *dk {
                     has = true;
                     break;
                 }
@@ -168,24 +153,7 @@ impl Args for CmdArgs {
     /// socks5://
     /// socks5h://
     ///        as SOCKS proxy
-    fn proxy(&self) -> Option<String> {
-        let p = self.matches.value_of("proxy").map(|i| i.to_string());
-        if p.is_some() {
-            return p;
-        }
-
-        if let Ok(p) = env::var("http_proxy") {
-            return Some(p);
-        }
-
-        if let Ok(p) = env::var("HTTPS_PROXY") {
-            return Some(p);
-        }
-
-        if let Ok(p) = env::var("ALL_PROXY") {
-            return Some(p);
-        }
-
+    fn proxy(&self) -> Option<&str> {
         None
     }
 
@@ -194,26 +162,19 @@ impl Args for CmdArgs {
     // Request timeout is the total time before a response must be received.
     // Default value is 5 seconds.
     fn timeout(&self) -> Duration {
-        Duration::from_secs(
-            self.matches
-                .value_of("timeout")
-                .map(|i| i.parse::<u64>().unwrap())
-                .unwrap_or({
-                    match self.task_type() {
-                        TaskType::HTTP => self.config.timeout.unwrap_or(60),
-                        TaskType::M3U8 => self.config.timeout.unwrap_or(30),
-                    }
-                }),
-        )
+        let timeout = match self.cli.timeout {
+            Some(timeout) => timeout,
+            None => match self.task_type() {
+                TaskType::HTTP => self.config.timeout.unwrap_or(60),
+                TaskType::M3U8 => self.config.timeout.unwrap_or(30),
+            },
+        };
+
+        Duration::from_secs(timeout)
     }
 
     fn dns_timeout(&self) -> Duration {
-        Duration::from_secs(
-            self.matches
-                .value_of("dns-timeout")
-                .map(|i| i.parse::<u64>().unwrap())
-                .unwrap_or(self.config.dns_timeout.unwrap_or(10)),
-        )
+        Duration::from_secs(self.cli.dns_timeout.unwrap_or(10))
     }
 
     fn keep_alive(&self) -> Duration {
@@ -237,70 +198,65 @@ impl Args for CmdArgs {
 
     /// The number of concurrency
     fn concurrency(&self) -> u64 {
-        self.matches
-            .value_of("concurrency")
-            .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(self.config.concurrency.unwrap_or(10))
+        self.cli
+            .concurrency
+            .unwrap_or_else(|| self.config.concurrency.unwrap_or(10))
     }
 
     /// The chunk size of each concurrency for http task
     fn chunk_size(&self) -> u64 {
-        self.matches
-            .value_of("chunk-size")
+        self.cli
+            .chunk_size
+            .as_deref()
             .map(|i| i.literal_number().unwrap())
-            .unwrap_or(
+            .unwrap_or_else(|| {
                 self.config
                     .chunk_size
                     .as_ref()
                     .map(|i| i.as_str().literal_number().unwrap())
-                    .unwrap_or(1024 * 1024 * 50),
-            ) // 50m
+                    .unwrap_or(1024 * 1024 * 50)
+            }) // 50m
     }
 
     /// The number of retry of a task, default is 5
     fn retries(&self) -> u64 {
-        self.matches
-            .value_of("retries")
-            .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(self.config.retries.unwrap_or(5))
+        self.cli
+            .retries
+            .unwrap_or_else(|| self.config.retries.unwrap_or(5))
     }
 
     /// The internal of each retry, default is zero
     fn retry_wait(&self) -> u64 {
-        self.matches
-            .value_of("retry_wait")
-            .map(|i| i.parse::<u64>().unwrap())
-            .unwrap_or(self.config.retry_wait.unwrap_or(0))
+        self.cli
+            .retry_wait
+            .unwrap_or_else(|| self.config.retry_wait.unwrap_or(0))
     }
 
     /// Task type
     fn task_type(&self) -> TaskType {
-        self.matches
-            .value_of("type")
-            .map(|i| match i.to_lowercase().as_str() {
-                "auto" => {
-                    let uri = self.uri();
-                    if uri.path().to_lowercase().ends_with(".m3u8") {
-                        TaskType::M3U8
-                    } else {
-                        TaskType::HTTP
-                    }
+        match self.cli.tp.as_str() {
+            "auto" => {
+                let uri = self.uri();
+                if uri.path().to_lowercase().ends_with(".m3u8") {
+                    TaskType::M3U8
+                } else {
+                    TaskType::HTTP
                 }
-                "http" => TaskType::HTTP,
-                "m3u8" => TaskType::M3U8,
-                _ => panic!(format!("{:?}", Error::UnsupportedTask(i.to_string()))),
-            })
-            .unwrap_or(TaskType::HTTP)
+            }
+            "http" => TaskType::HTTP,
+            "m3u8" => TaskType::M3U8,
+            _ => panic!("{:?}", Error::UnsupportedTask(self.cli.tp.clone())),
+        }
     }
 
     /// To debug mode, if it returns true
     fn debug(&self) -> bool {
-        self.matches.is_present("debug")
+        self.cli.debug
     }
 
     /// To quiet mode, if it return true
     fn quiet(&self) -> bool {
-        self.matches.is_present("quiet")
+        self.cli.quiet
     }
 }
 
