@@ -19,12 +19,7 @@ use common::{
 };
 use features::{args::Args, running::Runnable};
 
-use actix_rt::System;
-
 fn main() {
-    // From actix-rt(1.1.1), actix-rt does not create default System;
-    let _ = System::new("default");
-
     let cmdargs = CmdArgs::new();
 
     // Set debug
