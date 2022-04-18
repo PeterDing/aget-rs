@@ -31,8 +31,7 @@ impl RateStatus {
 
     pub fn rate(&self) -> f64 {
         let interval = self.tick.elapsed().as_secs_f64();
-        let rate = self.count as f64 / interval;
-        rate
+        self.count as f64 / interval
     }
 
     pub fn add(&mut self, incr: u64) {
