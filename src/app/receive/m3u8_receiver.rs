@@ -1,6 +1,6 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
-use futures::{channel::mpsc::Receiver, select, stream::StreamExt};
+use futures::{channel::mpsc::Receiver, pin_mut, select, stream::unfold, StreamExt};
 
 use actix_rt::time::interval;
 
@@ -71,8 +71,19 @@ impl M3u8Receiver {
     pub async fn start(&mut self, receiver: Receiver<(u64, Bytes)>) -> Result<()> {
         self.show_infos()?;
 
-        let mut tick = interval(Duration::from_secs(2)).fuse();
-        let mut receiver = receiver.fuse();
+        let receiver = receiver.fuse();
+
+        let this_interval = interval(Duration::from_secs(2));
+        // Make this_interval as stream
+        // https://stackoverflow.com/a/66863562
+        let tick = unfold(this_interval, |mut this_interval| async {
+            this_interval.tick().await;
+            Some(((), this_interval))
+        })
+        .fuse();
+
+        pin_mut!(receiver, tick);
+
         loop {
             select! {
                 item = receiver.next() => {
