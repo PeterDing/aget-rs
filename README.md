@@ -10,10 +10,6 @@ Especially, the concurrent amount can be any positive number as your wish.
 
 `aget-rs` supports to download a **HTTP/S** link and a **M3U8** video link.
 
-## Dependences
-
-Aget-rs needs `openssl > 1.0.2g`
-
 ## Installation
 
 You can download the last release from https://github.com/PeterDing/aget-rs/releases
