@@ -1,7 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
 use crate::common::{
-    bytes::bytes_type::BytesMut,
     net::{Method, Uri},
     tasks::TaskType,
 };
@@ -18,13 +17,13 @@ pub trait Args {
     fn uri(&self) -> Uri;
 
     /// The data for http post request
-    fn data(&self) -> Option<BytesMut>;
+    fn data(&self) -> Option<&str>;
 
     /// Request headers
-    fn headers(&self) -> Vec<(String, String)>;
+    fn headers(&self) -> Vec<(&str, &str)>;
 
     /// Proxy: http, https, socks4, socks5
-    fn proxy(&self) -> Option<String>;
+    fn proxy(&self) -> Option<&str>;
 
     /// The maximum time the request is allowed to take.
     fn timeout(&self) -> Duration;
