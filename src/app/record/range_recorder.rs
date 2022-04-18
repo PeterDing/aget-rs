@@ -90,7 +90,7 @@ impl RangeRecorder {
             pairs.push((begin, end));
         }
 
-        pairs.sort();
+        pairs.sort_unstable();
 
         // merge pairs
         let mut merged_pairs: Vec<(u64, u64)> = Vec::new();
@@ -98,7 +98,7 @@ impl RangeRecorder {
             merged_pairs.push(pairs[0]);
         }
         for (begin, end) in pairs.iter() {
-            let (pre_start, pre_end) = merged_pairs.last().unwrap().clone();
+            let (pre_start, pre_end) = *merged_pairs.last().unwrap();
 
             // case 1
             // ----------
