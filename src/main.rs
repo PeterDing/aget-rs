@@ -1,4 +1,3 @@
-#![recursion_limit = "256"]
 #![allow(dead_code)]
 
 #[macro_use]
