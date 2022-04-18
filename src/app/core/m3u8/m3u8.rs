@@ -2,14 +2,14 @@ use std::{cell::Cell, path::PathBuf, rc::Rc, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
-    select,
-    stream::StreamExt,
-    SinkExt,
+    pin_mut, select,
+    stream::unfold,
+    SinkExt, StreamExt,
 };
 
 use actix_rt::{
     spawn,
-    time::{delay_for, interval},
+    time::{interval, sleep},
     System,
 };
 
@@ -20,7 +20,7 @@ use crate::{
         record::{bytearray_recorder::ByteArrayRecorder, common::RECORDER_FILE_SUFFIX},
     },
     common::{
-        bytes::bytes_type::{Buf, Bytes},
+        bytes::bytes_type::Bytes,
         crypto::decrypt_aes128,
         errors::{Error, Result},
         net::{
@@ -32,19 +32,19 @@ use crate::{
 };
 
 /// M3u8 task handler
-pub struct M3u8Handler {
+pub struct M3u8Handler<'a> {
     output: PathBuf,
     method: Method,
     uri: Uri,
-    headers: Vec<(String, String)>,
-    data: Option<Bytes>,
+    headers: Vec<(&'a str, &'a str)>,
+    data: Option<&'a str>,
     connector_config: ConnectorConfig,
     concurrency: u64,
-    proxy: Option<String>,
+    proxy: Option<&'a str>,
     client: HttpClient,
 }
 
-impl M3u8Handler {
+impl<'a> M3u8Handler<'a> {
     pub fn new(args: &impl Args) -> Result<M3u8Handler> {
         let headers = args.headers();
         let timeout = args.timeout();
@@ -60,12 +60,8 @@ impl M3u8Handler {
             disable_redirects: true,
         };
 
-        let hds: Vec<(&str, &str)> = headers
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
         let client = build_http_client(
-            hds.as_ref(),
+            &headers,
             timeout,
             dns_timeout,
             keep_alive,
@@ -80,7 +76,7 @@ impl M3u8Handler {
             method: args.method(),
             uri: args.uri(),
             headers,
-            data: args.data().map(|ref mut d| d.to_bytes()),
+            data: args.data(),
             connector_config,
             concurrency: args.concurrency(),
             proxy: None,
@@ -105,7 +101,7 @@ impl M3u8Handler {
             &self.client,
             self.method.clone(),
             self.uri.clone(),
-            self.data.clone(),
+            self.data.map(|v| v.to_string()),
         )
         .await?;
         ls.reverse();
@@ -163,9 +159,9 @@ impl M3u8Handler {
     }
 }
 
-impl Runnable for M3u8Handler {
+impl<'a> Runnable for M3u8Handler<'a> {
     fn run(self) -> Result<()> {
-        let mut sys = System::new("M3u8Handler");
+        let sys = System::new();
         sys.block_on(self.start())
     }
 }
@@ -214,7 +210,7 @@ impl RequestTask {
                     }
                     Err(err) => {
                         debug!(format!("RequestTask {}: error", self.id), err);
-                        delay_for(Duration::from_secs(1)).await;
+                        sleep(Duration::from_secs(1)).await;
                     }
                     _ => break,
                 }
@@ -238,8 +234,18 @@ impl RequestTask {
         let mut buf: Vec<u8> = vec![];
 
         // Set timeout for reading
-        let mut resp = resp.fuse();
-        let mut tick = interval(self.timeout).fuse();
+        let resp = resp.fuse();
+
+        let this_interval = interval(self.timeout);
+        // Make this_interval as stream
+        // https://stackoverflow.com/a/66863562
+        let tick = unfold(this_interval, |mut this_interval| async {
+            this_interval.tick().await;
+            Some(((), this_interval))
+        })
+        .fuse();
+
+        pin_mut!(resp, tick);
         let mut fire = false;
         loop {
             select! {
@@ -283,7 +289,7 @@ impl RequestTask {
                 self.shared_index.set(index + 1);
                 return Ok(());
             } else {
-                delay_for(Duration::from_millis(500)).await;
+                sleep(Duration::from_millis(500)).await;
             }
         }
     }

@@ -2,9 +2,9 @@ use std::{path::PathBuf, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
-    select,
-    stream::StreamExt,
-    SinkExt,
+    pin_mut, select,
+    stream::unfold,
+    SinkExt, StreamExt,
 };
 
 use actix_rt::{spawn, time::interval, System};
@@ -15,7 +15,7 @@ use crate::{
         record::{common::RECORDER_FILE_SUFFIX, range_recorder::RangeRecorder},
     },
     common::{
-        bytes::bytes_type::{Buf, Bytes},
+        bytes::bytes_type::Bytes,
         errors::{Error, Result},
         file::File,
         net::{
@@ -28,23 +28,23 @@ use crate::{
 };
 
 /// Http task handler
-pub struct HttpHandler {
+pub struct HttpHandler<'a> {
     output: PathBuf,
     method: Method,
     uri: Uri,
-    headers: Vec<(String, String)>,
-    data: Option<Bytes>,
+    headers: Vec<(&'a str, &'a str)>,
+    data: Option<&'a str>,
     connector_config: ConnectorConfig,
     concurrency: u64,
     chunk_size: u64,
     retries: u64,
     retry_wait: u64,
     // proxy is None, because `awc` does not suppurt proxy
-    proxy: Option<String>,
+    proxy: Option<&'a str>,
     client: HttpClient,
 }
 
-impl HttpHandler {
+impl<'a> HttpHandler<'a> {
     pub fn new(args: &impl Args) -> Result<HttpHandler> {
         let headers = args.headers();
         let timeout = args.timeout();
@@ -60,12 +60,8 @@ impl HttpHandler {
             disable_redirects: true,
         };
 
-        let hds: Vec<(&str, &str)> = headers
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
         let client = build_http_client(
-            hds.as_ref(),
+            &headers,
             timeout,
             dns_timeout,
             keep_alive,
@@ -80,7 +76,7 @@ impl HttpHandler {
             method: args.method(),
             uri: args.uri(),
             headers,
-            data: args.data().map(|ref mut d| d.to_bytes()),
+            data: args.data(),
             connector_config,
             concurrency: args.concurrency(),
             chunk_size: args.chunk_size(),
@@ -108,7 +104,7 @@ impl HttpHandler {
             &self.client,
             self.method.clone(),
             self.uri.clone(),
-            self.data.clone(),
+            self.data.map(|v| v.to_string()),
         )
         .await?;
         debug!("HttpHandler: redirect to", uri);
@@ -172,14 +168,9 @@ impl HttpHandler {
         debug!("HttpHandler: dispatch task: direct", direct);
         if direct {
             // We need a new `HttpClient` which has unlimited life time for `DirectRequestTask`
-            let hds: Vec<(&str, &str)> = self
-                .headers
-                .iter()
-                .map(|(k, v)| (k.as_str(), v.as_str()))
-                .collect();
             let ConnectorConfig { dns_timeout, .. } = self.connector_config;
             let client = build_http_client(
-                hds.as_ref(),
+                &self.headers,
                 Duration::from_secs(60), // timeout for waiting the begin of response
                 dns_timeout,             // dns timeout
                 Duration::from_secs(60), // keep alive
@@ -190,7 +181,7 @@ impl HttpHandler {
                 client,
                 self.method.clone(),
                 self.uri.clone(),
-                self.data.clone(),
+                self.data.map(|v| v.to_string()),
                 sender.clone(),
             );
             spawn(async move {
@@ -215,7 +206,7 @@ impl HttpHandler {
                     self.client.clone(),
                     self.method.clone(),
                     self.uri.clone(),
-                    self.data.clone(),
+                    self.data.map(|v| v.to_string()),
                     stack.clone(),
                     sender.clone(),
                     i,
@@ -239,9 +230,9 @@ impl HttpHandler {
     }
 }
 
-impl Runnable for HttpHandler {
+impl<'a> Runnable for HttpHandler<'a> {
     fn run(self) -> Result<()> {
-        let mut sys = System::new("HttpHandler");
+        let sys = System::new();
         sys.block_on(self.start())
     }
 }
@@ -251,7 +242,7 @@ struct DirectRequestTask {
     client: HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
     sender: Sender<(RangePair, Bytes)>,
 }
 
@@ -260,7 +251,7 @@ impl DirectRequestTask {
         client: HttpClient,
         method: Method,
         uri: Uri,
-        data: Option<Bytes>,
+        data: Option<String>,
         sender: Sender<(RangePair, Bytes)>,
     ) -> DirectRequestTask {
         DirectRequestTask {
@@ -319,7 +310,7 @@ struct RangeRequestTask {
     client: HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
     stack: SharedRangList,
     sender: Sender<(RangePair, Bytes)>,
     id: u64,
@@ -331,7 +322,7 @@ impl RangeRequestTask {
         client: HttpClient,
         method: Method,
         uri: Uri,
-        data: Option<Bytes>,
+        data: Option<String>,
         stack: SharedRangList,
         sender: Sender<(RangePair, Bytes)>,
         id: u64,
@@ -391,8 +382,18 @@ impl RangeRequestTask {
         let mut offset = begin;
 
         // Set timeout for reading
-        let mut resp = resp.fuse();
-        let mut tick = interval(self.timeout).fuse();
+        let resp = resp.fuse();
+
+        let this_interval = interval(self.timeout);
+        // Make this_interval as stream
+        // https://stackoverflow.com/a/66863562
+        let tick = unfold(this_interval, |mut this_interval| async {
+            this_interval.tick().await;
+            Some(((), this_interval))
+        })
+        .fuse();
+
+        pin_mut!(resp, tick);
         let mut fire = false;
         loop {
             select! {

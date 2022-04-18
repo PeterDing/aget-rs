@@ -1,15 +1,9 @@
 use std::collections::HashMap;
 
-use m3u8_rs::{
-    parse_playlist_res,
-    playlist::{Key, Playlist},
-};
+use m3u8_rs::{parse_playlist_res, Key, Playlist};
 
 use crate::common::{
-    bytes::{
-        bytes::{decode_hex, u32_to_u8x4},
-        bytes_type::Bytes,
-    },
+    bytes::bytes::{decode_hex, u32_to_u8x4},
     errors::{Error, Result},
     list::SharedVec,
     net::{
@@ -23,7 +17,7 @@ pub struct M3u8Segment {
     pub index: u64,
     pub method: Method,
     pub uri: Uri,
-    pub data: Option<Bytes>,
+    pub data: Option<String>,
     pub key: Option<[u8; 16]>,
     pub iv: Option<[u8; 16]>,
 }
@@ -36,7 +30,7 @@ pub async fn get_m3u8(
     client: &HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
 ) -> Result<M3u8SegmentList> {
     // uri -> (key, iv)
     let mut keymap: HashMap<Uri, [u8; 16]> = HashMap::new();
@@ -102,7 +96,7 @@ pub async fn get_m3u8(
                             iv
                         };
                         if let Some(uri) = &key.uri {
-                            let key_uri = join_uri(&base_uri, &uri)?;
+                            let key_uri = join_uri(&base_uri, uri)?;
                             if let Some(k) = keymap.get(&key_uri) {
                                 (Some(*k), Some(iv))
                             } else {
