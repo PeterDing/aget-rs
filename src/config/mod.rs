@@ -1,9 +1,6 @@
 use std::{fs, io::Read};
 
 use serde::Deserialize;
-use toml;
-
-use dirs;
 
 #[derive(Deserialize, Default)]
 pub struct Config {
