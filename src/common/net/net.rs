@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::common::{
-    bytes::bytes_type::Bytes,
     errors::{Error, Result},
     net::{
         header, ClientResponse, Connector, ContentLengthValue, HttpClient, Method, RClientResponse,
@@ -14,7 +13,7 @@ pub fn parse_header(raw: &str) -> Result<(&str, &str), Error> {
     if let Some(index) = raw.find(": ") {
         return Ok((&raw[..index], &raw[index + 2..]));
     }
-    if let Some(index) = raw.find(":") {
+    if let Some(index) = raw.find(':') {
         return Ok((&raw[..index], &raw[index + 1..]));
     }
     Err(Error::InvalidHeader(raw.to_string()))
@@ -63,8 +62,7 @@ pub fn build_http_client(
         // Connection lifetime is max lifetime of any opened connection
         // until it is closed regardless of keep-alive period.
         // Default lifetime period is 75 seconds.
-        .conn_lifetime(lifetime)
-        .finish();
+        .conn_lifetime(lifetime);
 
     let mut builder = HttpClient::builder()
         .connector(conn)
@@ -82,7 +80,7 @@ pub fn build_http_client(
 
     // Add Default headers
     for (k, v) in headers {
-        builder = builder.header(*k, *v);
+        builder = builder.add_default_header((*k, *v));
     }
 
     builder.finish()
@@ -104,14 +102,14 @@ pub async fn redirect(
     client: &HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
 ) -> Result<Uri> {
     let mut uri = uri;
     loop {
         let req = client
             .request(method.clone(), uri.clone())
-            .set_header_if_none("Accept", "*/*") // set accept if none
-            .set_header(header::RANGE, "bytes=0-1");
+            .insert_header_if_none((header::ACCEPT, "*/*")) // set accept if none
+            .insert_header((header::RANGE, "bytes=0-1"));
 
         let resp = if let Some(d) = data.clone() {
             req.send_body(d).await?
@@ -139,14 +137,14 @@ pub async fn redirect_and_contentlength(
     client: &HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
 ) -> Result<(Uri, ContentLengthValue)> {
     let mut uri = uri;
     loop {
         let req = client
             .request(method.clone(), uri.clone())
-            .set_header_if_none("Accept", "*/*") // set accept if none
-            .set_header(header::RANGE, "bytes=0-1");
+            .insert_header_if_none((header::ACCEPT, "*/*")) // set accept if none
+            .insert_header((header::RANGE, "bytes=0-1"));
 
         let resp = if let Some(d) = data.clone() {
             req.send_body(d).await?
@@ -167,9 +165,9 @@ pub async fn redirect_and_contentlength(
             is_success(&resp)?;
             if let Some(h) = headers.get(header::CONTENT_RANGE) {
                 if let Ok(s) = h.to_str() {
-                    if let Some(index) = s.find("/") {
-                        if let Ok(length) = &s[index + 1..].parse::<u64>() {
-                            return Ok((uri, ContentLengthValue::RangeLength(length.clone())));
+                    if let Some(index) = s.find('/') {
+                        if let Ok(length) = s[index + 1..].parse::<u64>() {
+                            return Ok((uri, ContentLengthValue::RangeLength(length)));
                         }
                     }
                 }
@@ -177,7 +175,7 @@ pub async fn redirect_and_contentlength(
             if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
                 if let Ok(s) = h.to_str() {
                     if let Ok(length) = s.parse::<u64>() {
-                        return Ok((uri, ContentLengthValue::DirectLength(length.clone())));
+                        return Ok((uri, ContentLengthValue::DirectLength(length)));
                     }
                 }
             }
@@ -192,19 +190,19 @@ pub async fn request(
     client: &HttpClient,
     method: Method,
     uri: Uri,
-    data: Option<Bytes>,
+    data: Option<String>,
     range: Option<RangePair>,
 ) -> Result<RClientResponse> {
     let mut uri = uri;
     loop {
         let mut req = client
             .request(method.clone(), uri.clone())
-            .set_header_if_none("Accept", "*/*"); // set accept if none
+            .insert_header_if_none((header::ACCEPT, "*/*")); // set accept if none
 
         if let Some(RangePair { begin, end }) = range {
-            req = req.set_header(header::RANGE, format!("bytes={}-{}", begin, end));
+            req = req.insert_header((header::RANGE, format!("bytes={}-{}", begin, end)));
         } else {
-            req = req.set_header(header::RANGE, format!("bytes=0-"));
+            req = req.insert_header((header::RANGE, String::from("bytes=0-")));
         }
 
         let resp = if let Some(d) = data.clone() {
