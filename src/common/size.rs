@@ -1,6 +1,6 @@
 /// Here, we handle about size.
 
-const SIZES: [&'static str; 5] = ["B", "K", "M", "G", "T"];
+const SIZES: [&str; 5] = ["B", "K", "M", "G", "T"];
 
 /// Convert number to human-readable
 pub trait HumanReadable {

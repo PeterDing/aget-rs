@@ -1,6 +1,6 @@
 use crate::common::errors::{Error, Result};
 
-const SIZES: [&'static str; 5] = ["B", "K", "M", "G", "T"];
+const SIZES: [&str; 5] = ["B", "K", "M", "G", "T"];
 
 /// Convert liberal number to u64
 /// e.g.
