@@ -6,7 +6,7 @@ use url::ParseError as UrlParseError;
 
 use awc::error::{PayloadError, SendRequestError};
 
-use openssl;
+use aes::cipher::block_padding::UnpadError;
 
 pub type Result<T, E = Error> = result::Result<T, E>;
 
@@ -76,7 +76,7 @@ pub enum Error {
     #[error("No Location for redirection: {0}")]
     NoLocation(String),
     #[error("Fail to decrypt aes128 data: {0}")]
-    AES128DecryptFail(#[from] openssl::error::ErrorStack),
+    AES128DecryptFail(UnpadError),
 }
 
 impl From<http::header::ToStrError> for Error {
@@ -100,5 +100,11 @@ impl From<SendRequestError> for Error {
 impl From<PayloadError> for Error {
     fn from(err: PayloadError) -> Error {
         Error::NetError(format!("{}", err))
+    }
+}
+
+impl From<UnpadError> for Error {
+    fn from(err: UnpadError) -> Error {
+        Error::AES128DecryptFail(err)
     }
 }
