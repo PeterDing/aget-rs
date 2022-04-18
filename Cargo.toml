@@ -13,7 +13,7 @@ keywords = [
     "asynchronous",
     "tool",
 ]
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "ag"
@@ -24,32 +24,33 @@ path = "src/main.rs"
 [dependencies]
 # for async
 futures = "0.3"
-actix-rt = "1"
+actix-rt = "2.7"
 
 # for http
 http = "0.2"
 url = "2"
-awc = { version = "2", features = ["openssl"] }
-actix-http = { version = "2", features = ["compress"] }
+awc = { version = "3", features = ["rustls", "compress-brotli", "compress-gzip", "compress-zstd", "trust-dns"] }
+actix-http = { version = "3", features = ["rustls", "compress-brotli", "compress-gzip", "compress-zstd"] }
 
 # for errors
 thiserror = "1.0"
 
 # for crypto
-openssl = "0.10"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc", "block-padding"] }
 
 # utilities
 term_size = "0.3"
 ansi_term = "0.12"
 percent-encoding = "2"
-bytes = "0.5"
-clap = "2"
+bytes = "1"
+clap = { version = "3", features = ["derive", "cargo"] }
 toml = "0.5"
-serde = { version = "1.0", features = ["derive"]}
-dirs = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+dirs = "4.0"
 
 # for m3u8
-m3u8-rs = "1"
+m3u8-rs = "4"
 
 [profile.release]
 codegen-units = 1
