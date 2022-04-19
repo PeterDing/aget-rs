@@ -5,7 +5,7 @@ on:
   push:
     branches: [master]
   schedule:
-    - cron: "3 3 3 * *"
+    - cron: "2 2 2 * *"
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,7 +15,10 @@ jobs:
     name: Test
     strategy:
       matrix:
-        build: [linux, windows, mac]
+        build:
+          - linux
+          - windows
+          - mac
         include:
           - build: linux
             os: ubuntu-latest
@@ -31,14 +34,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           profile: minimal
           override: true
+
       - uses: Swatinem/rust-cache@v1
+
       - name: Build
         run: cargo build --verbose
-      - name: Run tests
+
+      - name: Tests
         run: cargo test --verbose
+
+      - name: Benchmark
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          ci/benchmark.bash

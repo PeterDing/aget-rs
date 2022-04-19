@@ -4,7 +4,7 @@ set -ex
 
 echo "-: benchmark.bash"
 
-if [[ $TRAVIS_OS_NAME != linux ]]; then
+if [[ $RUNNER_OS != Linux ]]; then
     exit 0
 fi
 
