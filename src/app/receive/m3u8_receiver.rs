@@ -1,8 +1,6 @@
 use std::{io::SeekFrom, path::Path, time::Duration};
 
-use futures::{channel::mpsc::Receiver, pin_mut, select, stream::unfold, StreamExt};
-
-use actix_rt::time::interval;
+use futures::{channel::mpsc::Receiver, pin_mut, select, StreamExt};
 
 use crate::{
     app::{
@@ -10,7 +8,7 @@ use crate::{
         show::m3u8_show::M3u8Shower,
         status::rate_status::RateStatus,
     },
-    common::{bytes::bytes_type::Bytes, errors::Result, file::File},
+    common::{bytes::bytes_type::Bytes, errors::Result, file::File, time::interval_stream},
 };
 
 pub struct M3u8Receiver {
@@ -72,15 +70,7 @@ impl M3u8Receiver {
         self.show_infos()?;
 
         let receiver = receiver.fuse();
-
-        let this_interval = interval(Duration::from_secs(2));
-        // Make this_interval as stream
-        // https://stackoverflow.com/a/66863562
-        let tick = unfold(this_interval, |mut this_interval| async {
-            this_interval.tick().await;
-            Some(((), this_interval))
-        })
-        .fuse();
+        let tick = interval_stream(Duration::from_secs(2)).fuse();
 
         pin_mut!(receiver, tick);
 

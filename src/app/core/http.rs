@@ -2,12 +2,10 @@ use std::{path::PathBuf, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
-    pin_mut, select,
-    stream::unfold,
-    SinkExt, StreamExt,
+    pin_mut, select, SinkExt, StreamExt,
 };
 
-use actix_rt::{spawn, time::interval, System};
+use actix_rt::{spawn, System};
 
 use crate::{
     app::{
@@ -23,6 +21,7 @@ use crate::{
             ConnectorConfig, ContentLengthValue, HttpClient, Method, Uri,
         },
         range::{split_pair, RangePair, SharedRangList},
+        time::interval_stream,
     },
     features::{args::Args, running::Runnable, stack::StackLike},
 };
@@ -383,15 +382,7 @@ impl RangeRequestTask {
 
         // Set timeout for reading
         let resp = resp.fuse();
-
-        let this_interval = interval(self.timeout);
-        // Make this_interval as stream
-        // https://stackoverflow.com/a/66863562
-        let tick = unfold(this_interval, |mut this_interval| async {
-            this_interval.tick().await;
-            Some(((), this_interval))
-        })
-        .fuse();
+        let tick = interval_stream(self.timeout).fuse();
 
         pin_mut!(resp, tick);
         let mut fire = false;
