@@ -1,7 +1,6 @@
 <h1 align="center">Aget-rs - Fast Asynchronous Downloader with Rust 🦀</h1>
 
-[![Build Status](https://travis-ci.org/PeterDing/aget-rs.svg?branch=master)](https://travis-ci.org/PeterDing/aget-rs)
-[![Appveyor Status](https://ci.appveyor.com/api/projects/status/e1g5lxvlo3duirk4?svg=true)](https://ci.appveyor.com/project/PeterDing/aget-rs)
+[![CI](https://github.com/PeterDing/aget-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/PeterDing/aget-rs/actions/workflows/ci.yml)
 
 `aget-rs` is a fast asynchronous downloader wrote with Rust.  
 It requests a resource with a number of concurrent asynchronous request in a single thread.

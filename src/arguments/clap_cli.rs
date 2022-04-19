@@ -13,7 +13,11 @@ pub struct AgetCli {
     )]
     pub method: String,
 
-    #[clap(short, long, help = r#"Request headers, e.g. -H "User-Agent: aget""#)]
+    #[clap(
+        short = 'H',
+        long,
+        help = r#"Request headers, e.g. -H "User-Agent: aget""#
+    )]
     pub header: Option<Vec<String>>,
 
     #[clap(
