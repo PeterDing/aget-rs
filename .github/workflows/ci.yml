@@ -48,9 +48,12 @@ jobs:
         run: cargo build --verbose
 
       - name: Tests
-        run: cargo test --verbose
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        run: |
+          cargo test --verbose
+          bash ci/script.bash
 
       - name: Benchmark
         if: matrix.os == 'ubuntu-latest'
         run: |
-          ci/benchmark.bash
+          bash ci/benchmark.bash

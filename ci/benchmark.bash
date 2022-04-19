@@ -16,7 +16,7 @@ echo "-: start nginx"
 sudo nginx -c "$(pwd)/ci/benchmark.nginx.conf"
 
 echo "-: make test file"
-sudo mkdir /data
+sudo mkdir -p /data
 # size: 10m
 sudo dd if=/dev/zero of=file.txt count=10240 bs=1024
 sudo mv file.txt /data/abc

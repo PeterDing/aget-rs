@@ -23,10 +23,15 @@ pub struct AgetCli {
     )]
     pub data: Option<String>,
 
-    #[clap(short, long, help = "The number of concurrency request [default: 10]")]
+    #[clap(
+        short = 's',
+        long,
+        help = "The number of concurrency request [default: 10]"
+    )]
     pub concurrency: Option<u64>,
 
     #[clap(
+        short = 'k',
         long,
         help = "The number ofinterval length of each concurrent request [default: '50m']"
     )]
