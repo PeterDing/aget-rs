@@ -15,4 +15,5 @@ pub mod range;
 pub mod size;
 pub mod tasks;
 pub mod terminal;
+pub mod time;
 pub mod uri;
