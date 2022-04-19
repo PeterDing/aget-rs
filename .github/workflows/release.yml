@@ -143,7 +143,7 @@ jobs:
         run: |
           staging="aget-rs-${{ needs.create-release.outputs.ag_version }}-${{ matrix.target }}"
           mkdir -p "$staging"
-          cp {README.md,LICENSE-APACHE,LICENSE-MIT} "$staging/"
+          cp {README.md,LICENSE-APACHE,LICENSE-MIT,CHANGELOG.md} "$staging/"
           if [ "${{ matrix.os }}" = "windows-2019" ]; then
             cp "target/${{ matrix.target }}/release/ag.exe" "$staging/"
             7z a "$staging.zip" "$staging"
