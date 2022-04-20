@@ -24,7 +24,10 @@ use crate::{
     features::args::Args,
 };
 
-const DEFAULT_HEADERS: [(&str, &str); 1] = [("user-agent", "aget/0.4.0")];
+const DEFAULT_HEADERS: [(&str, &str); 1] = [(
+    "user-agent",
+    concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
+)];
 
 pub struct CmdArgs {
     cli: AgetCli,

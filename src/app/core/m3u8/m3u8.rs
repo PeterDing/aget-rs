@@ -64,7 +64,7 @@ impl<'a> M3u8Handler<'a> {
             true, // Disable rediect
         );
 
-        debug!("M3u8Handler::new");
+        tracing::debug!("M3u8Handler::new");
 
         Ok(M3u8Handler {
             output: args.output(),
@@ -80,10 +80,10 @@ impl<'a> M3u8Handler<'a> {
     }
 
     async fn start(self) -> Result<()> {
-        debug!("M3u8Handler::start");
+        tracing::debug!("M3u8Handler::start");
 
         // 0. Check whether task is completed
-        debug!("M3u8Handler: check whether task is completed");
+        tracing::debug!("M3u8Handler: check whether task is completed");
         let mut bytearrayrecorder =
             ByteArrayRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
         if self.output.exists() && !bytearrayrecorder.exists() {
@@ -91,7 +91,7 @@ impl<'a> M3u8Handler<'a> {
         }
 
         // 1. Get m3u8 info
-        debug!("M3u8Handler: get m3u8");
+        tracing::debug!("M3u8Handler: get m3u8");
         let mut ls = get_m3u8(
             &self.client,
             self.method.clone(),
@@ -121,7 +121,7 @@ impl<'a> M3u8Handler<'a> {
         let index = ls.last().unwrap().index;
         let sharedindex = Rc::new(Cell::new(index));
         let stack = SharedM3u8SegmentList::new(ls);
-        debug!("M3u8Handler: segments", stack.len());
+        tracing::debug!("M3u8Handler: segments: {}", stack.len());
 
         // 3. Create channel
         let (sender, receiver) = channel::<(u64, Bytes)>(self.concurrency as usize + 10);
@@ -144,7 +144,7 @@ impl<'a> M3u8Handler<'a> {
         drop(sender); // Remove the reference and let `Task` to handle it
 
         // 5. Create receiver
-        debug!("M3u8Handler: create receiver");
+        tracing::debug!("M3u8Handler: create receiver");
         let mut m3u8receiver = M3u8Receiver::new(&self.output)?;
         m3u8receiver.start(receiver).await?;
 
@@ -191,20 +191,20 @@ impl RequestTask {
     }
 
     async fn start(&mut self) {
-        debug!("Fire RequestTask", self.id);
+        tracing::debug!("Fire RequestTask: {}", self.id);
         while let Some(segment) = self.stack.pop() {
             loop {
                 match self.req(segment.clone()).await {
                     // Exit whole process when `Error::InnerError` is returned
                     Err(Error::InnerError(msg)) => {
-                        print_err!(format!("RequestTask {}: InnerError", self.id), msg);
+                        tracing::error!("RequestTask {}: InnerError: {}", self.id, msg);
                         System::current().stop();
                     }
                     Err(err @ Error::Timeout) => {
-                        debug!(err); // Missing Timeout at runtime
+                        tracing::debug!("RequestTask timeout: {:?}", err); // Missing Timeout at runtime
                     }
                     Err(err) => {
-                        debug!(format!("RequestTask {}: error", self.id), err);
+                        tracing::debug!("RequestTask {}: error: {:?}", self.id, err);
                         sleep(Duration::from_secs(1)).await;
                     }
                     _ => break,

@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::{fmt, path::PathBuf, time::Duration};
 
 use futures::{
     channel::mpsc::{channel, Sender},
@@ -43,8 +43,19 @@ pub struct HttpHandler<'a> {
     client: HttpClient,
 }
 
+impl<'a> std::fmt::Debug for HttpHandler<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "HttpHandler{{ method: {}, uri: {}, headers: {:?}, data: {:?}, concurrency: {} }}",
+            self.method, self.uri, self.headers, self.data, self.concurrency
+        )
+    }
+}
+
 impl<'a> HttpHandler<'a> {
-    pub fn new(args: &impl Args) -> Result<HttpHandler> {
+    #[tracing::instrument]
+    pub fn new(args: &(impl Args + std::fmt::Debug)) -> Result<HttpHandler> {
         let headers = args.headers();
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();
@@ -68,7 +79,7 @@ impl<'a> HttpHandler<'a> {
             true, // Disable rediect
         );
 
-        debug!("HttpHandler::new");
+        tracing::debug!("HttpHandler::new");
 
         Ok(HttpHandler {
             output: args.output(),
@@ -86,11 +97,12 @@ impl<'a> HttpHandler<'a> {
         })
     }
 
+    #[tracing::instrument]
     async fn start(mut self) -> Result<()> {
-        debug!("HttpHandler::start");
+        tracing::debug!("HttpHandler::start");
 
         // 0. Check whether task is completed
-        debug!("HttpHandler: check whether task is completed");
+        tracing::debug!("HttpHandler: check whether task is completed");
         let mut rangerecorder =
             RangeRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
         if self.output.exists() && !rangerecorder.exists() {
@@ -98,7 +110,7 @@ impl<'a> HttpHandler<'a> {
         }
 
         // 1. redirect and get content_length
-        debug!("HttpHandler: redirect and content_length start");
+        tracing::debug!("HttpHandler: redirect and content_length start");
         let (uri, cl) = redirect_and_contentlength(
             &self.client,
             self.method.clone(),
@@ -106,8 +118,8 @@ impl<'a> HttpHandler<'a> {
             self.data.map(|v| v.to_string()),
         )
         .await?;
-        debug!("HttpHandler: redirect to", uri);
-        debug!("HttpHandler: content_length", cl);
+        tracing::debug!("HttpHandler: redirect to: {}", uri);
+        tracing::debug!("HttpHandler: content_length: {:?}", cl);
 
         self.uri = uri;
 
@@ -120,7 +132,7 @@ impl<'a> HttpHandler<'a> {
         };
 
         // 2. Compare recorded content length with the above one
-        debug!("HttpHandler: compare recorded content length");
+        tracing::debug!("HttpHandler: compare recorded content length");
         let mut direct = true;
         if let ContentLengthValue::RangeLength(cl) = cl {
             if self.output.exists() {
@@ -164,7 +176,7 @@ impl<'a> HttpHandler<'a> {
         let (sender, receiver) = channel::<(RangePair, Bytes)>(self.concurrency as usize + 10);
 
         // 4. Dispatch Task
-        debug!("HttpHandler: dispatch task: direct", direct);
+        tracing::debug!("HttpHandler: dispatch task: direct: {}", direct);
         if direct {
             // We need a new `HttpClient` which has unlimited life time for `DirectRequestTask`
             let ConnectorConfig { dns_timeout, .. } = self.connector_config;
@@ -197,7 +209,7 @@ impl<'a> HttpHandler<'a> {
             stack.reverse();
             let stack = SharedRangList::new(stack);
             // let stack = SharedRangList::new(rangerecorder.gaps()?);
-            debug!("HttpHandler: range stack length", stack.len());
+            tracing::debug!("HttpHandler: range stack length: {}", stack.len());
 
             let concurrency = std::cmp::min(stack.len() as u64, self.concurrency);
             for i in 1..concurrency + 1 {
@@ -219,7 +231,7 @@ impl<'a> HttpHandler<'a> {
         drop(sender); // Remove the reference and let `Task` to handle it
 
         // 5. Create receiver
-        debug!("HttpHandler: create receiver");
+        tracing::debug!("HttpHandler: create receiver");
         let mut httpreceiver = HttpReceiver::new(&self.output, direct, content_length)?;
         httpreceiver.start(receiver).await?;
 
@@ -246,6 +258,7 @@ struct DirectRequestTask {
 }
 
 impl DirectRequestTask {
+    #[tracing::instrument(skip(client, sender))]
     fn new(
         client: HttpClient,
         method: Method,
@@ -262,6 +275,7 @@ impl DirectRequestTask {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn start(&mut self) {
         loop {
             let resp = request(
@@ -273,7 +287,7 @@ impl DirectRequestTask {
             )
             .await;
             if let Err(err) = resp {
-                print_err!("DirectRequestTask request error", err);
+                tracing::error!("DirectRequestTask request error: {:?}", err);
                 continue;
             }
             let mut resp = resp.unwrap();
@@ -294,7 +308,7 @@ impl DirectRequestTask {
                         offset += len as u64;
                     }
                     Err(err) => {
-                        print_err!("DirectRequestTask read error", err);
+                        tracing::error!("DirectRequestTask read error: {:?}", err);
                         break;
                     }
                 }
@@ -317,6 +331,7 @@ struct RangeRequestTask {
 }
 
 impl RangeRequestTask {
+    #[tracing::instrument(skip(client, sender))]
     fn new(
         client: HttpClient,
         method: Method,
@@ -339,20 +354,21 @@ impl RangeRequestTask {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn start(&mut self) {
-        debug!("Fire RangeRequestTask", self.id);
+        tracing::debug!("Fire RangeRequestTask: {}", self.id);
         while let Some(pair) = self.stack.pop() {
             match self.req(pair).await {
                 // Exit whole process when `Error::InnerError` is returned
                 Err(Error::InnerError(msg)) => {
-                    print_err!(format!("RangeRequestTask {}: InnerError", self.id), msg);
+                    tracing::error!("RangeRequestTask {}: InnerError: {}", self.id, msg);
                     System::current().stop();
                 }
                 Err(err @ Error::Timeout) => {
-                    debug!(err); // Missing Timeout at runtime
+                    tracing::debug!("RangeRequestTask timeout: {}", err); // Missing Timeout at runtime
                 }
                 Err(err) => {
-                    debug!(format!("RangeRequestTask {}: error", self.id), err);
+                    tracing::debug!("RangeRequestTask {}: error: {}", self.id, err);
                 }
                 _ => {}
             }

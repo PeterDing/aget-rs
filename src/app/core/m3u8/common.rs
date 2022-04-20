@@ -40,11 +40,11 @@ pub async fn get_m3u8(
     let mut idx = 0;
 
     while let Some(uri) = uris.pop() {
-        debug!("m3u8", uri);
+        tracing::debug!("m3u8 uri: {}", uri);
         let u = redirect(client, method.clone(), uri.clone(), data.clone()).await?;
 
         if u != uri {
-            debug!("m3u8 redirect to", u);
+            tracing::debug!("m3u8 redirect to: {}", u);
             uris.push(u.clone());
             continue;
         }
@@ -102,12 +102,10 @@ pub async fn get_m3u8(
                             } else {
                                 let k = get_key(client, Method::GET, key_uri.clone()).await?;
                                 keymap.insert(key_uri.clone(), k);
-                                debug!(
-                                    "Get key, iv",
-                                    (
-                                        std::str::from_utf8_unchecked(&k),
-                                        std::str::from_utf8_unchecked(&iv)
-                                    )
+                                tracing::debug!(
+                                    "Get key: {}, iv: {}",
+                                    unsafe { std::str::from_utf8_unchecked(&k) },
+                                    unsafe { std::str::from_utf8_unchecked(&iv) }
                                 );
                                 (Some(k), Some(iv))
                             }

@@ -1,6 +1,3 @@
-#[macro_use]
-pub mod debug;
-
 pub mod buf;
 pub mod bytes;
 pub mod character;

@@ -12,31 +12,30 @@ use std::{process::exit, thread, time::Duration};
 
 use app::core::{http::HttpHandler, m3u8::M3u8Handler};
 use arguments::cmd_args::CmdArgs;
-use common::{
-    debug::{DEBUG, QUIET},
-    tasks::TaskType,
-};
+use common::tasks::TaskType;
 use features::{args::Args, running::Runnable};
+
+use tracing_bunyan_formatter::BunyanFormattingLayer;
+use tracing_bunyan_formatter::JsonStorageLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::Registry;
 
 fn main() {
     let cmdargs = CmdArgs::new();
+    let log_level = if cmdargs.debug() { "debug" } else { "error" };
 
-    // Set debug
-    if cmdargs.debug() {
-        unsafe {
-            DEBUG = true;
-        }
-        debug!("Args", cmdargs);
-    }
+    let app_name = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")).to_string();
+    let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stdout());
+    let bunyan_formatting_layer = BunyanFormattingLayer::new(app_name, non_blocking_writer);
+    let subscriber = Registry::default()
+        .with(EnvFilter::new(log_level))
+        .with(JsonStorageLayer)
+        .with(bunyan_formatting_layer);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    // Set quiet
-    if cmdargs.quiet() {
-        unsafe {
-            QUIET = true;
-        }
-    }
-
-    debug!("Main: begin");
+    tracing::debug!("Main: begin");
+    tracing::debug!("Args: {:?}", cmdargs);
 
     let tasktype = cmdargs.task_type();
     for i in 0..cmdargs.retries() + 1 {
@@ -56,7 +55,7 @@ fn main() {
         };
 
         if let Err(err) = result {
-            print_err!("Error", err);
+            tracing::error!("Error: {:?}", err);
             // Retry
             let retrywait = cmdargs.retry_wait();
             thread::sleep(Duration::from_secs(retrywait));
