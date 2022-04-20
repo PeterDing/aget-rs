@@ -6,7 +6,7 @@ TEST_AIM_URI="https://github.com/mpv-player/mpv/archive/49d6a1e77d3dba5cf30a2cb9
 TEST_AIM_MD5="703cd17daf71138b90622d52fe6fb6a5"
 TEST_AIM_NAME="49d6a1e77d3dba5cf30a2cb9cd05dc6dd6407fb2.zip"
 
-RUST_BACKTRACE=1 cargo run -- $TEST_AIM_URI
+RUST_BACKTRACE=1 cargo run -- $TEST_AIM_URI --debug
 
 if [ "$RUNNER_OS" = "Linux" ]
 then
