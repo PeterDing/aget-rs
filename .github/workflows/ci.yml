@@ -19,6 +19,7 @@ jobs:
           - linux
           - windows
           - mac
+          - mac-aarch64
         include:
           - build: linux
             os: ubuntu-latest
@@ -29,6 +30,10 @@ jobs:
           - build: mac
             os: macos-latest
             rust: "stable"
+          - build: mac-aarch64
+            os: macos-latest
+            rust: "stable"
+            target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
 
@@ -42,13 +47,22 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install aarch64 toolchain
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: rustup target add aarch64-apple-darwin
+
       - uses: Swatinem/rust-cache@v1
 
       - name: Build
+        if: matrix.target != 'aarch64-apple-darwin'
         run: cargo build --verbose
 
+      - name: Build aarch64
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: cargo build --target=aarch64-apple-darwin --verbose
+
       - name: Tests
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cargo test --verbose
           bash ci/script.bash
