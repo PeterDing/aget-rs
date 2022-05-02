@@ -79,7 +79,7 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 
 - Set concurrent amount and chunk length
 
-   Use `-s` or `--concurrent` to set the number of concurrent request.  
+   Use `-s` or `--concurrency` to set the number of concurrent request.  
    Use `-k` or `--chunk-size` to set the chunk length of each request.  
    `--chunk-size` takes a literal size description, example `1k` for one Kilobyte,  
    `2m` for two Megabyte, `1g` for Gigabyte.  
