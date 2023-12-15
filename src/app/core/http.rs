@@ -292,6 +292,8 @@ impl DirectRequestTask {
                     }
                 }
             }
+
+            break;
         }
     }
 }
