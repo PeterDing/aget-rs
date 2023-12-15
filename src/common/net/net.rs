@@ -100,25 +100,25 @@ pub async fn redirect_and_contentlength(
     is_success(&resp)?;
 
     let url = resp.url().clone();
-    let content_length = resp.content_length();
-    if content_length.is_none() {
-        return Ok((url, ContentLengthValue::NoLength));
-    }
-
-    let cl_str = resp
-        .headers()
-        .get("content-range")
-        .unwrap()
-        .to_str()
-        .unwrap();
-    let index = cl_str.find('/').unwrap();
-    let length = cl_str[index + 1..].parse::<u64>()?;
 
     let status_code = resp.status();
     if status_code.as_u16() == 206 {
+        let cl_str = resp
+            .headers()
+            .get("content-range")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let index = cl_str.find('/').unwrap();
+        let length = cl_str[index + 1..].parse::<u64>()?;
         return Ok((url, ContentLengthValue::RangeLength(length)));
     } else {
-        return Ok((url, ContentLengthValue::DirectLength(length)));
+        let content_length = resp.content_length();
+        if let Some(length) = content_length {
+            return Ok((url, ContentLengthValue::DirectLength(length)));
+        } else {
+            return Ok((url, ContentLengthValue::NoLength));
+        }
     }
 }
 
