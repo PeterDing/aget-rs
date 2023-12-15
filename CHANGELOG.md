@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2023-12-15
+
+### Changed
+
+- Use `reqwest` to instead of `awc`
+
+### Updated
+
+- Support proxy
+
+  Use `--proxy` option or set global proxy environment variables
+
 ## 0.4.1 - 2022-04-20
 
 ### Added
