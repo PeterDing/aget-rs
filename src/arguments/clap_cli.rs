@@ -54,6 +54,13 @@ pub struct AgetCli {
     pub retry_wait: Option<u64>,
 
     #[clap(
+        long = "proxy",
+        name = "PROXY",
+        help = "[protocol://]host[:port] Use this proxy"
+    )]
+    pub proxy: Option<String>,
+
+    #[clap(
         long = "type",
         name = "TYPE",
         default_value = "auto",

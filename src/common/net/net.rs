@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::common::{
     errors::{Error, Result},
-    net::{ContentLengthValue, HeaderMap, HeaderName, HttpClient, Method, Response, Url},
+    net::{ContentLengthValue, HeaderMap, HeaderName, HttpClient, Method, Proxy, Response, Url},
     range::RangePair,
 };
 
@@ -33,6 +33,7 @@ pub fn build_http_client(
     timeout: Duration,
     dns_timeout: Duration,
     keep_alive: Duration,
+    proxy: Option<&str>,
 ) -> Result<HttpClient> {
     let mut default_headers = HeaderMap::new();
     headers.iter().for_each(|(k, v)| {
@@ -42,12 +43,15 @@ pub fn build_http_client(
         default_headers.insert("accept", "*/*".parse().unwrap());
     }
 
-    Ok(HttpClient::builder()
+    let mut client = HttpClient::builder()
         .timeout(timeout)
         .connect_timeout(dns_timeout)
         .tcp_keepalive(keep_alive)
-        .default_headers(default_headers)
-        .build()?)
+        .default_headers(default_headers);
+    if let Some(url) = proxy {
+        client = client.proxy(Proxy::all(url)?);
+    }
+    Ok(client.build()?)
 }
 
 /// Check whether the response is success

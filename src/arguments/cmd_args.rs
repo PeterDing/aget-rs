@@ -157,7 +157,7 @@ impl Args for CmdArgs {
     /// socks5h://
     ///        as SOCKS proxy
     fn proxy(&self) -> Option<&str> {
-        None
+        self.cli.proxy.as_deref()
     }
 
     // Set request timeout
