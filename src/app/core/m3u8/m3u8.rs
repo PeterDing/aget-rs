@@ -17,7 +17,7 @@ use crate::{
         errors::{Error, Result},
         net::{
             net::{build_http_client, request},
-            ConnectorConfig, HttpClient, Method, Url,
+            HttpClient, Method, Url,
         },
         time::interval_stream,
     },
@@ -29,11 +29,9 @@ pub struct M3u8Handler<'a> {
     output: PathBuf,
     method: Method,
     url: Url,
-    headers: Vec<(&'a str, &'a str)>,
     data: Option<&'a str>,
-    connector_config: ConnectorConfig,
     concurrency: u64,
-    proxy: Option<&'a str>,
+    timeout: Duration,
     client: HttpClient,
 }
 
@@ -43,17 +41,9 @@ impl<'a> M3u8Handler<'a> {
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();
         let keep_alive = args.keep_alive();
-        let lifetime = args.lifetime();
+        let proxy = args.proxy();
 
-        let connector_config = ConnectorConfig {
-            timeout,
-            dns_timeout,
-            keep_alive,
-            lifetime,
-            disable_redirects: true,
-        };
-
-        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive)?;
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive, proxy)?;
 
         tracing::debug!("M3u8Handler::new");
 
@@ -61,11 +51,9 @@ impl<'a> M3u8Handler<'a> {
             output: args.output(),
             method: args.method(),
             url: args.url(),
-            headers,
             data: args.data(),
-            connector_config,
             concurrency: args.concurrency(),
-            proxy: None,
+            timeout,
             client,
         })
     }
@@ -126,7 +114,7 @@ impl<'a> M3u8Handler<'a> {
                 sender.clone(),
                 i,
                 sharedindex.clone(),
-                self.connector_config.timeout,
+                self.timeout,
             );
             actix_rt::spawn(async move {
                 task.start().await;

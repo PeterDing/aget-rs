@@ -16,7 +16,7 @@ use crate::{
         file::File,
         net::{
             net::{build_http_client, redirect_and_contentlength, request},
-            ConnectorConfig, ContentLengthValue, HttpClient, Method, Url,
+            ContentLengthValue, HttpClient, Method, Url,
         },
         range::{split_pair, RangePair, SharedRangList},
         time::interval_stream,
@@ -31,13 +31,10 @@ pub struct HttpHandler<'a> {
     url: Url,
     headers: Vec<(&'a str, &'a str)>,
     data: Option<&'a str>,
-    connector_config: ConnectorConfig,
     concurrency: u64,
     chunk_size: u64,
-    retries: u64,
-    retry_wait: u64,
-    // proxy is None, because `awc` does not suppurt proxy
     proxy: Option<&'a str>,
+    timeout: Duration,
     client: HttpClient,
 }
 
@@ -45,8 +42,8 @@ impl<'a> std::fmt::Debug for HttpHandler<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "HttpHandler{{ method: {}, url: {}, headers: {:?}, data: {:?}, concurrency: {} }}",
-            self.method, self.url, self.headers, self.data, self.concurrency
+            "HttpHandler{{ method: {}, url: {}, headers: {:?}, data: {:?}, concurrency: {}, proxy: {:?} }}",
+            self.method, self.url, self.headers, self.data, self.concurrency, self.proxy
         )
     }
 }
@@ -57,17 +54,9 @@ impl<'a> HttpHandler<'a> {
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();
         let keep_alive = args.keep_alive();
-        let lifetime = args.lifetime();
+        let proxy = args.proxy();
 
-        let connector_config = ConnectorConfig {
-            timeout,
-            dns_timeout,
-            keep_alive,
-            lifetime,
-            disable_redirects: true,
-        };
-
-        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive)?;
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive, proxy)?;
 
         tracing::debug!("HttpHandler::new");
 
@@ -77,12 +66,10 @@ impl<'a> HttpHandler<'a> {
             url: args.url(),
             headers,
             data: args.data(),
-            connector_config,
             concurrency: args.concurrency(),
             chunk_size: args.chunk_size(),
-            retries: args.retries(),
-            retry_wait: args.retry_wait(),
-            proxy: None,
+            proxy,
+            timeout,
             client,
         })
     }
@@ -201,7 +188,7 @@ impl<'a> HttpHandler<'a> {
                     stack.clone(),
                     sender.clone(),
                     i,
-                    self.connector_config.timeout,
+                    self.timeout,
                 );
                 actix_rt::spawn(async move {
                     task.start().await;
