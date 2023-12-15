@@ -1,7 +1,11 @@
 use std::time::Duration;
 
 use actix_rt::time::sleep;
-use futures::{future::ready, stream::repeat, stream::Stream, FutureExt, StreamExt};
+use futures::{
+    future::ready,
+    stream::{repeat, Stream},
+    FutureExt, StreamExt,
+};
 
 /// Interval Stream
 pub fn interval_stream(timeout: Duration) -> impl Stream<Item = ()> {
