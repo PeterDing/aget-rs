@@ -1,11 +1,6 @@
 name: CI
 
-on:
-  pull_request:
-  push:
-    branches: [master]
-  schedule:
-    - cron: "2 2 2 * *"
+on: push
 
 env:
   CARGO_TERM_COLOR: always
