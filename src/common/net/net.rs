@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use crate::common::{
     errors::{Error, Result},
-    net::{
-        header, ClientResponse, Connector, ContentLengthValue, HttpClient, Method, RClientResponse,
-        Uri, Url,
-    },
+    net::{ContentLengthValue, HeaderMap, HeaderName, HttpClient, Method, Response, Url},
     range::RangePair,
 };
 
@@ -36,59 +33,26 @@ pub fn build_http_client(
     timeout: Duration,
     dns_timeout: Duration,
     keep_alive: Duration,
-    lifetime: Duration,
-    disable_redirects: bool,
-) -> HttpClient {
-    let conn = Connector::new()
-        // Set total number of simultaneous connections per type of scheme.
-        //
-        // If limit is 0, the connector has no limit.
-        // The default limit size is 100.
-        .limit(0)
-        // Connection timeout
-        //
-        // i.e. max time to connect to remote host including dns name resolution.
-        // Set to 1 second by default.
-        .timeout(dns_timeout)
-        // Set keep-alive period for opened connection.
-        //
-        // Keep-alive period is the period between connection usage. If
-        // the delay between repeated usages of the same connection
-        // exceeds this period, the connection is closed.
-        // Default keep-alive period is 15 seconds.
-        .conn_keep_alive(keep_alive)
-        // Set max lifetime period for connection.
-        //
-        // Connection lifetime is max lifetime of any opened connection
-        // until it is closed regardless of keep-alive period.
-        // Default lifetime period is 75 seconds.
-        .conn_lifetime(lifetime);
+) -> Result<HttpClient> {
+    let mut default_headers = HeaderMap::new();
+    headers.iter().for_each(|(k, v)| {
+        default_headers.insert(k.parse::<HeaderName>().unwrap(), v.parse().unwrap());
+    });
+    if !default_headers.contains_key("accept") {
+        default_headers.insert("accept", "*/*".parse().unwrap());
+    }
 
-    let mut builder = HttpClient::builder()
-        .connector(conn)
-        // Set request timeout
-        //
-        // Request timeout is the total time before a response must be received.
-        // Default value is 5 seconds.
+    Ok(HttpClient::builder()
         .timeout(timeout)
-        // Here we do not use default headers.
-        .no_default_headers();
-
-    if disable_redirects {
-        builder = builder.disable_redirects();
-    }
-
-    // Add Default headers
-    for (k, v) in headers {
-        builder = builder.add_default_header((*k, *v));
-    }
-
-    builder.finish()
+        .connect_timeout(dns_timeout)
+        .tcp_keepalive(keep_alive)
+        .default_headers(default_headers)
+        .build()?)
 }
 
 /// Check whether the response is success
 /// Check if status is within 200-299.
-pub fn is_success<T>(resp: &ClientResponse<T>) -> Result<(), Error> {
+pub fn is_success(resp: &reqwest::Response) -> Result<(), Error> {
     let status = resp.status();
     if !status.is_success() {
         Err(Error::Unsuccess(status.as_u16()))
@@ -97,141 +61,96 @@ pub fn is_success<T>(resp: &ClientResponse<T>) -> Result<(), Error> {
     }
 }
 
-/// Send a request with a range header, returning the final uri
+/// Send a request with a range header, returning the final url
 pub async fn redirect(
     client: &HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
-) -> Result<Uri> {
-    let mut uri = uri;
-    loop {
-        let req = client
-            .request(method.clone(), uri.clone())
-            .insert_header_if_none((header::ACCEPT, "*/*")) // set accept if none
-            .insert_header((header::RANGE, "bytes=0-1"));
+) -> Result<Url> {
+    let mut req = client
+        .request(method.clone(), url.clone())
+        .header("range", "bytes=0-1");
 
-        let resp = if let Some(d) = data.clone() {
-            req.send_body(d).await?
-        } else {
-            req.send().await?
-        };
+    if let Some(d) = data {
+        req = req.body(d);
+    };
 
-        if !resp.status().is_redirection() {
-            is_success(&resp)?; // Return unsuccess code
-            break;
-        }
+    let resp = req.send().await?;
+    is_success(&resp)?; // Return unsuccess code
 
-        let headers = resp.headers();
-        if let Some(location) = headers.get(header::LOCATION) {
-            uri = location.to_str()?.parse()?;
-        } else {
-            break;
-        }
-    }
-    Ok(uri)
+    Ok(resp.url().clone())
 }
 
 /// Get the content length of the resource
 pub async fn redirect_and_contentlength(
     client: &HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
-) -> Result<(Uri, ContentLengthValue)> {
-    let mut uri = uri;
-    loop {
-        let req = client
-            .request(method.clone(), uri.clone())
-            .insert_header_if_none((header::ACCEPT, "*/*")) // set accept if none
-            .insert_header((header::RANGE, "bytes=0-1"));
-
-        let resp = if let Some(d) = data.clone() {
-            req.send_body(d).await?
-        } else {
-            req.send().await?
-        };
-
-        let headers = resp.headers();
-        if resp.status().is_redirection() {
-            if let Some(location) = headers.get(header::LOCATION) {
-                let uri_str = location.to_str()?;
-                uri = join_uri(&uri, uri_str)?;
-                continue;
-            } else {
-                return Err(Error::NoLocation(format!("{}", uri)));
-            }
-        } else {
-            is_success(&resp)?;
-            if let Some(h) = headers.get(header::CONTENT_RANGE) {
-                if let Ok(s) = h.to_str() {
-                    if let Some(index) = s.find('/') {
-                        if let Ok(length) = s[index + 1..].parse::<u64>() {
-                            return Ok((uri, ContentLengthValue::RangeLength(length)));
-                        }
-                    }
-                }
-            }
-            if let Some(h) = resp.headers().get(header::CONTENT_LENGTH) {
-                if let Ok(s) = h.to_str() {
-                    if let Ok(length) = s.parse::<u64>() {
-                        return Ok((uri, ContentLengthValue::DirectLength(length)));
-                    }
-                }
-            }
-            break;
-        }
+) -> Result<(Url, ContentLengthValue)> {
+    let mut req = client
+        .request(method.clone(), url.clone())
+        .header("range", "bytes=0-1");
+    if let Some(d) = data.clone() {
+        req = req.body(d);
     }
-    Ok((uri, ContentLengthValue::NoLength))
+
+    let resp = req.send().await?;
+    is_success(&resp)?;
+
+    let url = resp.url().clone();
+    let content_length = resp.content_length();
+    if content_length.is_none() {
+        return Ok((url, ContentLengthValue::NoLength));
+    }
+
+    let cl_str = resp
+        .headers()
+        .get("content-range")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let index = cl_str.find('/').unwrap();
+    let length = cl_str[index + 1..].parse::<u64>()?;
+
+    let status_code = resp.status();
+    if status_code.as_u16() == 206 {
+        return Ok((url, ContentLengthValue::RangeLength(length)));
+    } else {
+        return Ok((url, ContentLengthValue::DirectLength(length)));
+    }
 }
 
 /// Send a request
 pub async fn request(
     client: &HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
     range: Option<RangePair>,
-) -> Result<RClientResponse> {
-    let mut uri = uri;
-    loop {
-        let mut req = client
-            .request(method.clone(), uri.clone())
-            .insert_header_if_none((header::ACCEPT, "*/*")); // set accept if none
-
-        if let Some(RangePair { begin, end }) = range {
-            req = req.insert_header((header::RANGE, format!("bytes={}-{}", begin, end)));
-        } else {
-            req = req.insert_header((header::RANGE, String::from("bytes=0-")));
-        }
-
-        let resp = if let Some(d) = data.clone() {
-            req.send_body(d).await?
-        } else {
-            req.send().await?
-        };
-
-        if resp.status().is_redirection() {
-            if let Some(location) = resp.headers().get(header::LOCATION) {
-                let uri_str = location.to_str()?;
-                uri = join_uri(&uri, uri_str)?;
-                continue;
-            } else {
-                return Err(Error::NoLocation(format!("{}", uri)));
-            }
-        } else {
-            is_success(&resp)?;
-            return Ok(resp);
-        }
+) -> Result<Response> {
+    let mut req = client.request(method, url);
+    if let Some(RangePair { begin, end }) = range {
+        req = req.header("range", format!("bytes={}-{}", begin, end));
+    } else {
+        req = req.header("range", "bytes=0-");
     }
+    if let Some(d) = data.clone() {
+        req = req.body(d);
+    }
+
+    let resp = req.send().await?;
+    is_success(&resp)?;
+    return Ok(resp);
 }
 
-pub fn join_uri(base_uri: &Uri, uri: &str) -> Result<Uri> {
-    let new_uri: Uri = if !uri.to_lowercase().starts_with("http") {
-        let base_url = Url::parse(&format!("{}", base_uri))?;
-        base_url.join(uri)?.as_str().parse()?
+pub fn join_url(base_url: &Url, url: &str) -> Result<Url> {
+    let new_url: Url = if !url.to_lowercase().starts_with("http") {
+        let base_url = Url::parse(&format!("{}", base_url))?;
+        base_url.join(url)?.as_str().parse()?
     } else {
-        uri.parse()?
+        url.parse()?
     };
-    Ok(new_uri)
+    Ok(new_url)
 }
