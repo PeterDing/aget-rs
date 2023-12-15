@@ -17,7 +17,7 @@ use crate::{
         character::escape_nonascii,
         errors::Error,
         liberal::ParseLiteralNumber,
-        net::{net::parse_headers, Method, Uri},
+        net::{net::parse_headers, Method, Url},
         tasks::TaskType,
     },
     config::Config,
@@ -52,8 +52,8 @@ impl Args for CmdArgs {
         if let Some(path) = self.cli.out.clone() {
             PathBuf::from(path)
         } else {
-            let uri = self.uri();
-            let path = Path::new(uri.path());
+            let url = self.url();
+            let path = Path::new(url.path());
             if let Some(file_name) = path.file_name() {
                 PathBuf::from(
                     percent_decode(file_name.to_str().unwrap().as_bytes())
@@ -82,8 +82,8 @@ impl Args for CmdArgs {
         }
     }
 
-    /// The uri of a task
-    fn uri(&self) -> Uri {
+    /// The url of a task
+    fn url(&self) -> Url {
         escape_nonascii(&self.cli.url)
             .parse()
             .expect("URL is unvalidable")
@@ -239,8 +239,8 @@ impl Args for CmdArgs {
     fn task_type(&self) -> TaskType {
         match self.cli.tp.as_str() {
             "auto" => {
-                let uri = self.uri();
-                if uri.path().to_lowercase().ends_with(".m3u8") {
+                let url = self.url();
+                if url.path().to_lowercase().ends_with(".m3u8") {
                     TaskType::M3U8
                 } else {
                     TaskType::HTTP
@@ -268,7 +268,7 @@ impl fmt::Debug for CmdArgs {
         f.debug_struct("CmdArgs")
             .field("output", &self.output())
             .field("method", &self.method())
-            .field("uri", &self.uri())
+            .field("url", &self.url())
             .field("data", &self.data())
             .field("headers", &self.headers())
             .field("proxy", &self.proxy())

@@ -5,8 +5,6 @@ use futures::{
     pin_mut, select, SinkExt, StreamExt,
 };
 
-use actix_rt::{spawn, time::sleep, System};
-
 use crate::{
     app::{
         core::m3u8::common::{get_m3u8, M3u8Segment, SharedM3u8SegmentList},
@@ -19,7 +17,7 @@ use crate::{
         errors::{Error, Result},
         net::{
             net::{build_http_client, request},
-            ConnectorConfig, HttpClient, Method, Uri,
+            ConnectorConfig, HttpClient, Method, Url,
         },
         time::interval_stream,
     },
@@ -30,7 +28,7 @@ use crate::{
 pub struct M3u8Handler<'a> {
     output: PathBuf,
     method: Method,
-    uri: Uri,
+    url: Url,
     headers: Vec<(&'a str, &'a str)>,
     data: Option<&'a str>,
     connector_config: ConnectorConfig,
@@ -55,21 +53,14 @@ impl<'a> M3u8Handler<'a> {
             disable_redirects: true,
         };
 
-        let client = build_http_client(
-            &headers,
-            timeout,
-            dns_timeout,
-            keep_alive,
-            lifetime,
-            true, // Disable rediect
-        );
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive)?;
 
         tracing::debug!("M3u8Handler::new");
 
         Ok(M3u8Handler {
             output: args.output(),
             method: args.method(),
-            uri: args.uri(),
+            url: args.url(),
             headers,
             data: args.data(),
             connector_config,
@@ -95,7 +86,7 @@ impl<'a> M3u8Handler<'a> {
         let mut ls = get_m3u8(
             &self.client,
             self.method.clone(),
-            self.uri.clone(),
+            self.url.clone(),
             self.data.map(|v| v.to_string()),
         )
         .await?;
@@ -137,7 +128,7 @@ impl<'a> M3u8Handler<'a> {
                 sharedindex.clone(),
                 self.connector_config.timeout,
             );
-            spawn(async move {
+            actix_rt::spawn(async move {
                 task.start().await;
             });
         }
@@ -156,7 +147,7 @@ impl<'a> M3u8Handler<'a> {
 
 impl<'a> Runnable for M3u8Handler<'a> {
     fn run(self) -> Result<()> {
-        let sys = System::new();
+        let sys = actix_rt::System::new();
         sys.block_on(self.start())
     }
 }
@@ -198,14 +189,14 @@ impl RequestTask {
                     // Exit whole process when `Error::InnerError` is returned
                     Err(Error::InnerError(msg)) => {
                         tracing::error!("RequestTask {}: InnerError: {}", self.id, msg);
-                        System::current().stop();
+                        actix_rt::System::current().stop();
                     }
                     Err(err @ Error::Timeout) => {
                         tracing::debug!("RequestTask timeout: {:?}", err); // Missing Timeout at runtime
                     }
                     Err(err) => {
                         tracing::debug!("RequestTask {}: error: {:?}", self.id, err);
-                        sleep(Duration::from_secs(1)).await;
+                        actix_rt::time::sleep(Duration::from_secs(1)).await;
                     }
                     _ => break,
                 }
@@ -217,7 +208,7 @@ impl RequestTask {
         let resp = request(
             &self.client,
             segment.method.clone(),
-            segment.uri.clone(),
+            segment.url.clone(),
             segment.data.clone(),
             None,
         )
@@ -228,15 +219,16 @@ impl RequestTask {
         // !!! resp.body().await can be overflow
         let mut buf: Vec<u8> = vec![];
 
+        let stream = resp.bytes_stream().fuse();
+
         // Set timeout for reading
-        let resp = resp.fuse();
         let tick = interval_stream(self.timeout).fuse();
 
-        pin_mut!(resp, tick);
+        pin_mut!(stream, tick);
         let mut fire = false;
         loop {
             select! {
-                item = resp.next() => {
+                item = stream.next() => {
                     if let Some(item) = item {
                         match item {
                             Ok(chunk) => {
@@ -276,7 +268,7 @@ impl RequestTask {
                 self.shared_index.set(index + 1);
                 return Ok(());
             } else {
-                sleep(Duration::from_millis(500)).await;
+                actix_rt::time::sleep(Duration::from_millis(500)).await;
             }
         }
     }

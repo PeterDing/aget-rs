@@ -1,40 +1,37 @@
 #![allow(dead_code)]
 
-#[macro_use]
-mod common;
+use std::{process::exit, str::FromStr, thread, time::Duration};
 
-mod app;
-mod arguments;
-mod config;
-mod features;
+use time::{macros::format_description, UtcOffset};
+use tracing_subscriber::fmt::time::OffsetTime;
 
-use std::{process::exit, thread, time::Duration};
-
-use app::core::{http::HttpHandler, m3u8::M3u8Handler};
-use arguments::cmd_args::CmdArgs;
-use common::tasks::TaskType;
-use features::{args::Args, running::Runnable};
-
-use tracing_bunyan_formatter::BunyanFormattingLayer;
-use tracing_bunyan_formatter::JsonStorageLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::Registry;
+use aget::{
+    app::core::{http::HttpHandler, m3u8::M3u8Handler},
+    arguments::cmd_args::CmdArgs,
+    common::tasks::TaskType,
+    features::{args::Args, running::Runnable},
+};
 
 fn main() {
     let cmdargs = CmdArgs::new();
     let log_level = if cmdargs.debug() { "debug" } else { "error" };
 
     let app_name = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")).to_string();
-    let (non_blocking_writer, _guard) = tracing_appender::non_blocking(std::io::stdout());
-    let bunyan_formatting_layer = BunyanFormattingLayer::new(app_name, non_blocking_writer);
-    let subscriber = Registry::default()
-        .with(EnvFilter::new(log_level))
-        .with(JsonStorageLayer)
-        .with(bunyan_formatting_layer);
-    tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    tracing::debug!("Main: begin");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
+    let local_time = OffsetTime::new(
+        UtcOffset::from_hms(8, 0, 0).unwrap(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:2]"),
+    );
+
+    let log_level = tracing::Level::from_str(log_level).unwrap();
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_max_level(log_level)
+        .with_timer(local_time)
+        .init();
+
+    tracing::debug!("===== Aget-rs {}: begin =====", app_name);
     tracing::debug!("Args: {:?}", cmdargs);
 
     let tasktype = cmdargs.task_type();

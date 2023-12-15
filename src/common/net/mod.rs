@@ -1,23 +1,13 @@
 pub mod net;
 
-use std::{boxed::Box, pin::Pin, time::Duration};
+use std::time::Duration;
 
-pub use http::{self, header, HeaderMap, HeaderValue, Method, Request, Response, Uri};
-
-pub use url::Url;
-
-pub use awc::{
-    error as net_error, Client as HttpClient, ClientBuilder, ClientRequest, ClientResponse,
-    Connector,
+pub use http::Uri;
+pub use reqwest::{
+    header::{HeaderMap, HeaderName},
+    Client as HttpClient, Method, Request, Response,
 };
-
-use bytes::Bytes;
-use futures::Stream;
-
-use actix_http::{encoding::Decoder, error::PayloadError, Payload};
-
-pub type RClientResponse =
-    ClientResponse<Decoder<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>>;
+pub use url::Url;
 
 #[derive(Debug)]
 pub enum ContentLengthValue {

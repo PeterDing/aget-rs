@@ -4,8 +4,6 @@ use thiserror::Error as ThisError;
 
 use url::ParseError as UrlParseError;
 
-use awc::error::{PayloadError, SendRequestError};
-
 use aes::cipher::block_padding::UnpadError;
 
 pub type Result<T, E = Error> = result::Result<T, E>;
@@ -42,6 +40,8 @@ pub enum Error {
     Timeout,
 
     // For Network
+    #[error("Request error: {0}")]
+    RequestError(#[from] reqwest::Error),
     #[error("Network error: {0}")]
     NetError(String),
     #[error("Uncompleted Read")]
@@ -87,18 +87,6 @@ impl From<http::header::ToStrError> for Error {
 
 impl From<http::Error> for Error {
     fn from(err: http::Error) -> Error {
-        Error::NetError(format!("{}", err))
-    }
-}
-
-impl From<SendRequestError> for Error {
-    fn from(err: SendRequestError) -> Error {
-        Error::NetError(format!("{}", err))
-    }
-}
-
-impl From<PayloadError> for Error {
-    fn from(err: PayloadError) -> Error {
         Error::NetError(format!("{}", err))
     }
 }

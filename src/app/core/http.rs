@@ -5,8 +5,6 @@ use futures::{
     pin_mut, select, SinkExt, StreamExt,
 };
 
-use actix_rt::{spawn, System};
-
 use crate::{
     app::{
         receive::http_receiver::HttpReceiver,
@@ -18,7 +16,7 @@ use crate::{
         file::File,
         net::{
             net::{build_http_client, redirect_and_contentlength, request},
-            ConnectorConfig, ContentLengthValue, HttpClient, Method, Uri,
+            ConnectorConfig, ContentLengthValue, HttpClient, Method, Url,
         },
         range::{split_pair, RangePair, SharedRangList},
         time::interval_stream,
@@ -30,7 +28,7 @@ use crate::{
 pub struct HttpHandler<'a> {
     output: PathBuf,
     method: Method,
-    uri: Uri,
+    url: Url,
     headers: Vec<(&'a str, &'a str)>,
     data: Option<&'a str>,
     connector_config: ConnectorConfig,
@@ -47,14 +45,13 @@ impl<'a> std::fmt::Debug for HttpHandler<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "HttpHandler{{ method: {}, uri: {}, headers: {:?}, data: {:?}, concurrency: {} }}",
-            self.method, self.uri, self.headers, self.data, self.concurrency
+            "HttpHandler{{ method: {}, url: {}, headers: {:?}, data: {:?}, concurrency: {} }}",
+            self.method, self.url, self.headers, self.data, self.concurrency
         )
     }
 }
 
 impl<'a> HttpHandler<'a> {
-    #[tracing::instrument]
     pub fn new(args: &(impl Args + std::fmt::Debug)) -> Result<HttpHandler> {
         let headers = args.headers();
         let timeout = args.timeout();
@@ -70,21 +67,14 @@ impl<'a> HttpHandler<'a> {
             disable_redirects: true,
         };
 
-        let client = build_http_client(
-            &headers,
-            timeout,
-            dns_timeout,
-            keep_alive,
-            lifetime,
-            true, // Disable rediect
-        );
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive)?;
 
         tracing::debug!("HttpHandler::new");
 
         Ok(HttpHandler {
             output: args.output(),
             method: args.method(),
-            uri: args.uri(),
+            url: args.url(),
             headers,
             data: args.data(),
             connector_config,
@@ -97,7 +87,6 @@ impl<'a> HttpHandler<'a> {
         })
     }
 
-    #[tracing::instrument]
     async fn start(mut self) -> Result<()> {
         tracing::debug!("HttpHandler::start");
 
@@ -111,17 +100,17 @@ impl<'a> HttpHandler<'a> {
 
         // 1. redirect and get content_length
         tracing::debug!("HttpHandler: redirect and content_length start");
-        let (uri, cl) = redirect_and_contentlength(
+        let (url, cl) = redirect_and_contentlength(
             &self.client,
             self.method.clone(),
-            self.uri.clone(),
+            self.url.clone(),
             self.data.map(|v| v.to_string()),
         )
         .await?;
-        tracing::debug!("HttpHandler: redirect to: {}", uri);
+        tracing::debug!("HttpHandler: redirect to: {}", url);
         tracing::debug!("HttpHandler: content_length: {:?}", cl);
 
-        self.uri = uri;
+        self.url = url;
 
         let content_length = {
             match cl {
@@ -179,23 +168,14 @@ impl<'a> HttpHandler<'a> {
         tracing::debug!("HttpHandler: dispatch task: direct: {}", direct);
         if direct {
             // We need a new `HttpClient` which has unlimited life time for `DirectRequestTask`
-            let ConnectorConfig { dns_timeout, .. } = self.connector_config;
-            let client = build_http_client(
-                &self.headers,
-                Duration::from_secs(60), // timeout for waiting the begin of response
-                dns_timeout,             // dns timeout
-                Duration::from_secs(60), // keep alive
-                Duration::from_secs(0),  // lifetime
-                true,                    // Disable rediect
-            );
             let mut task = DirectRequestTask::new(
-                client,
+                self.client.clone(),
                 self.method.clone(),
-                self.uri.clone(),
+                self.url.clone(),
                 self.data.map(|v| v.to_string()),
                 sender.clone(),
             );
-            spawn(async move {
+            actix_rt::spawn(async move {
                 task.start().await;
             });
         } else {
@@ -216,14 +196,14 @@ impl<'a> HttpHandler<'a> {
                 let mut task = RangeRequestTask::new(
                     self.client.clone(),
                     self.method.clone(),
-                    self.uri.clone(),
+                    self.url.clone(),
                     self.data.map(|v| v.to_string()),
                     stack.clone(),
                     sender.clone(),
                     i,
                     self.connector_config.timeout,
                 );
-                spawn(async move {
+                actix_rt::spawn(async move {
                     task.start().await;
                 });
             }
@@ -243,7 +223,7 @@ impl<'a> HttpHandler<'a> {
 
 impl<'a> Runnable for HttpHandler<'a> {
     fn run(self) -> Result<()> {
-        let sys = System::new();
+        let sys = actix_rt::System::new();
         sys.block_on(self.start())
     }
 }
@@ -252,7 +232,7 @@ impl<'a> Runnable for HttpHandler<'a> {
 struct DirectRequestTask {
     client: HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
     sender: Sender<(RangePair, Bytes)>,
 }
@@ -262,14 +242,14 @@ impl DirectRequestTask {
     fn new(
         client: HttpClient,
         method: Method,
-        uri: Uri,
+        url: Url,
         data: Option<String>,
         sender: Sender<(RangePair, Bytes)>,
     ) -> DirectRequestTask {
         DirectRequestTask {
             client,
             method,
-            uri,
+            url,
             data,
             sender,
         }
@@ -281,7 +261,7 @@ impl DirectRequestTask {
             let resp = request(
                 &self.client,
                 self.method.clone(),
-                self.uri.clone(),
+                self.url.clone(),
                 self.data.clone(),
                 None,
             )
@@ -290,10 +270,11 @@ impl DirectRequestTask {
                 tracing::error!("DirectRequestTask request error: {:?}", err);
                 continue;
             }
-            let mut resp = resp.unwrap();
+            let resp = resp.unwrap();
+            let mut stream = resp.bytes_stream();
 
             let mut offset = 0u64;
-            while let Some(item) = resp.next().await {
+            while let Some(item) = stream.next().await {
                 match item {
                     Ok(chunk) => {
                         let len = chunk.len();
@@ -302,9 +283,7 @@ impl DirectRequestTask {
                         }
 
                         let pair = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
-                        if self.sender.send((pair, chunk)).await.is_err() {
-                            break;
-                        }
+                        self.sender.send((pair, chunk)).await.unwrap();
                         offset += len as u64;
                     }
                     Err(err) => {
@@ -313,7 +292,6 @@ impl DirectRequestTask {
                     }
                 }
             }
-            break;
         }
     }
 }
@@ -322,7 +300,7 @@ impl DirectRequestTask {
 struct RangeRequestTask {
     client: HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
     stack: SharedRangList,
     sender: Sender<(RangePair, Bytes)>,
@@ -335,7 +313,7 @@ impl RangeRequestTask {
     fn new(
         client: HttpClient,
         method: Method,
-        uri: Uri,
+        url: Url,
         data: Option<String>,
         stack: SharedRangList,
         sender: Sender<(RangePair, Bytes)>,
@@ -345,7 +323,7 @@ impl RangeRequestTask {
         RangeRequestTask {
             client,
             method,
-            uri,
+            url,
             data,
             stack,
             sender,
@@ -362,7 +340,7 @@ impl RangeRequestTask {
                 // Exit whole process when `Error::InnerError` is returned
                 Err(Error::InnerError(msg)) => {
                     tracing::error!("RangeRequestTask {}: InnerError: {}", self.id, msg);
-                    System::current().stop();
+                    actix_rt::System::current().stop();
                 }
                 Err(err @ Error::Timeout) => {
                     tracing::debug!("RangeRequestTask timeout: {}", err); // Missing Timeout at runtime
@@ -379,7 +357,7 @@ impl RangeRequestTask {
         let resp = request(
             &self.client,
             self.method.clone(),
-            self.uri.clone(),
+            self.url.clone(),
             self.data.clone(),
             Some(pair),
         )
@@ -396,15 +374,16 @@ impl RangeRequestTask {
         let mut count = 0u64;
         let mut offset = begin;
 
+        let stream = resp.bytes_stream().fuse();
+
         // Set timeout for reading
-        let resp = resp.fuse();
         let tick = interval_stream(self.timeout).fuse();
 
-        pin_mut!(resp, tick);
+        pin_mut!(stream, tick);
         let mut fire = false;
         loop {
             select! {
-                item = resp.next() => {
+                item = stream.next() => {
                     if let Some(item) = item {
                         match item {
                             Ok(chunk) => {

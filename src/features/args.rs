@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use crate::common::{
-    net::{Method, Uri},
+    net::{Method, Url},
     tasks::TaskType,
 };
 
@@ -14,7 +14,7 @@ pub trait Args {
     fn method(&self) -> Method;
 
     /// The uri of a task
-    fn uri(&self) -> Uri;
+    fn url(&self) -> Url;
 
     /// The data for http post request
     fn data(&self) -> Option<&str>;

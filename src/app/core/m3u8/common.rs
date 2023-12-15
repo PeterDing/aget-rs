@@ -7,8 +7,8 @@ use crate::common::{
     errors::{Error, Result},
     list::SharedVec,
     net::{
-        net::{join_uri, redirect, request},
-        HttpClient, Method, Uri,
+        net::{join_url, redirect, request},
+        HttpClient, Method, Url,
     },
 };
 
@@ -16,7 +16,7 @@ use crate::common::{
 pub struct M3u8Segment {
     pub index: u64,
     pub method: Method,
-    pub uri: Uri,
+    pub url: Url,
     pub data: Option<String>,
     pub key: Option<[u8; 16]>,
     pub iv: Option<[u8; 16]>,
@@ -29,31 +29,31 @@ pub type SharedM3u8SegmentList = SharedVec<M3u8Segment>;
 pub async fn get_m3u8(
     client: &HttpClient,
     method: Method,
-    uri: Uri,
+    url: Url,
     data: Option<String>,
 ) -> Result<M3u8SegmentList> {
-    // uri -> (key, iv)
-    let mut keymap: HashMap<Uri, [u8; 16]> = HashMap::new();
-    let mut uris = vec![uri];
+    // url -> (key, iv)
+    let mut keymap: HashMap<Url, [u8; 16]> = HashMap::new();
+    let mut urls = vec![url];
     let mut list = vec![];
 
     let mut idx = 0;
 
-    while let Some(uri) = uris.pop() {
-        tracing::debug!("m3u8 uri: {}", uri);
-        let u = redirect(client, method.clone(), uri.clone(), data.clone()).await?;
+    while let Some(url) = urls.pop() {
+        tracing::debug!("m3u8 url: {}", url);
+        let u = redirect(client, method.clone(), url.clone(), data.clone()).await?;
 
-        if u != uri {
+        if u != url {
             tracing::debug!("m3u8 redirect to: {}", u);
-            uris.push(u.clone());
+            urls.push(u.clone());
             continue;
         }
 
-        let base_uri = u.clone();
+        let base_url = u.clone();
 
         // Read m3u8 content
-        let mut resp = request(client, method.clone(), u.clone(), data.clone(), None).await?;
-        let cn = resp.body().await?;
+        let resp = request(client, method.clone(), u.clone(), data.clone(), None).await?;
+        let cn = resp.bytes().await?;
         let mut cn = cn.to_vec();
 
         // Adding "\n" for the case when response content has not "\n" at end.
@@ -65,15 +65,15 @@ pub async fn get_m3u8(
             Ok(Playlist::MasterPlaylist(mut pl)) => {
                 pl.variants.reverse();
                 for variant in &pl.variants {
-                    let uri = join_uri(&base_uri, &variant.uri)?;
-                    uris.push(uri);
+                    let url = join_url(&base_url, &variant.uri)?;
+                    urls.push(url);
                 }
             }
             Ok(Playlist::MediaPlaylist(pl)) => {
                 let mut index = pl.media_sequence as u64;
                 let mut key_m: Option<Key> = None;
                 for segment in &pl.segments {
-                    let seg_uri = join_uri(&base_uri, &segment.uri)?;
+                    let seg_url = join_url(&base_url, &segment.uri)?;
 
                     // In `pl.segment`, the same key will not repeat, if previous key appears.
                     let segment_key = if segment.key.is_none() && key_m.is_some() {
@@ -95,13 +95,13 @@ pub async fn get_m3u8(
                             iv[12..].clone_from_slice(&index_bin);
                             iv
                         };
-                        if let Some(uri) = &key.uri {
-                            let key_uri = join_uri(&base_uri, uri)?;
-                            if let Some(k) = keymap.get(&key_uri) {
+                        if let Some(url) = &key.uri {
+                            let key_url = join_url(&base_url, url)?;
+                            if let Some(k) = keymap.get(&key_url) {
                                 (Some(*k), Some(iv))
                             } else {
-                                let k = get_key(client, Method::GET, key_uri.clone()).await?;
-                                keymap.insert(key_uri.clone(), k);
+                                let k = get_key(client, Method::GET, key_url.clone()).await?;
+                                keymap.insert(key_url.clone(), k);
                                 tracing::debug!(
                                     "Get key: {}, iv: {}",
                                     unsafe { std::str::from_utf8_unchecked(&k) },
@@ -119,7 +119,7 @@ pub async fn get_m3u8(
                     list.push(M3u8Segment {
                         index: idx,
                         method: Method::GET,
-                        uri: seg_uri.clone(),
+                        url: seg_url.clone(),
                         data: None,
                         key,
                         iv,
@@ -134,9 +134,9 @@ pub async fn get_m3u8(
     Ok(list)
 }
 
-async fn get_key(client: &HttpClient, method: Method, uri: Uri) -> Result<[u8; 16]> {
-    let mut resp = request(client, method.clone(), uri.clone(), None, None).await?;
-    let cn = resp.body().await?;
+async fn get_key(client: &HttpClient, method: Method, url: Url) -> Result<[u8; 16]> {
+    let resp = request(client, method.clone(), url.clone(), None, None).await?;
+    let cn = resp.bytes().await?;
     let mut buf = [0; 16];
     buf[..].clone_from_slice(&cn);
     Ok(buf)

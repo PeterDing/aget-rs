@@ -15,6 +15,10 @@ keywords = [
 ]
 edition = "2021"
 
+[lib]
+name = "aget"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ag"
 path = "src/main.rs"
@@ -24,13 +28,12 @@ path = "src/main.rs"
 [dependencies]
 # for async
 futures = "0.3"
-actix-rt = "2.7"
+actix-rt = "2.9"
 
 # for http
-http = "0.2"
-url = "2"
-awc = { version = "3", features = ["rustls", "compress-brotli", "compress-gzip", "compress-zstd", "trust-dns"] }
-actix-http = { version = "3", features = ["rustls", "compress-brotli", "compress-gzip", "compress-zstd"] }
+http = "1.0"
+url = "2.5"
+reqwest = { version = "0.11", features = ["default", "stream", "gzip", "brotli", "deflate"] }
 
 # for errors
 thiserror = "1.0"
@@ -44,19 +47,22 @@ term_size = "0.3"
 ansi_term = "0.12"
 percent-encoding = "2"
 bytes = "1"
-clap = { version = "3", features = ["derive", "cargo"] }
-toml = "0.5"
+clap = { version = "4", features = ["derive", "cargo"] }
+toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
-dirs = "4.0"
+dirs = "5.0"
 
 # for m3u8
-m3u8-rs = "4"
+m3u8-rs = "5"
 
 # for tracing
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
-tracing-bunyan-formatter = "0.3"
+tracing-subscriber = { version = "0.3", features = ["default", "time", "local-time", "registry"] }
 tracing-appender = "0.2"
+time = { version = "0.3", features = ["formatting", "macros"] }
+
+[dev-dependencies]
+rand = "0.8"
 
 [profile.release]
 codegen-units = 1
