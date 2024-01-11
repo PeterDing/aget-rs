@@ -118,29 +118,29 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 ## Options
 
 ```
-USAGE:
-    ag [OPTIONS] <URL>
+Usage: ag [OPTIONS] <URL>
 
-OPTIONS:
-    -X, --method <method>              Request method, e.g. GET, POST. [default: GET]
-    -H, --header <header>...           Request headers, e.g. -H "User-Agent: aget".
-    -d, --data <data>                  Request with POST method with the data, e.g. -d "a=b".
-    -o, --out <out>                    The path of output for the request e.g. -o "/path/to/file".
-    -s, --concurrency <concurrency>    The number of concurrency request e.g. -s 10 [default: 10]
-    -k, --chunk-size <chunk-size>      The interval length of each concurrent request e.g. -k 100k [default: 1m]
-    -t, --timeout <timeout>            Timeout(seconds) of request [default: 60]
-    -n, --dns-timeout <dns-timeout>    DNS Timeout(seconds) of request [default: 10]
-        --retries <retries>            The maximum times of retring [default: 5]
-        --retry-wait <retry-wait>      The seconds between retries [default: 0]
-        --type <type>                  Task type, auto/http/m3u8 [default: auto]
-        --debug                        Debug output. Print all trackback for debugging
-        --quiet                        Quiet mode. Don't show progress bar and task information. But still show the
-                                       error information
-    -h, --help                         Print this help message.
-    -V, --version                      Show version information.
+Arguments:
+  <URL>
 
-ARGS:
-    <URL>    URL to request.
+Options:
+  -m, --method <METHOD>            Request method, e.g. GET, POST [default: GET]
+  -H, --header <HEADER>            Request headers, e.g. -H "User-Agent: aget"
+  -d, --data <DATA>                Request with POST method with the data, e.g. -d "a=b"
+      --insecure                   Skip to verify the server's TLS certificate
+  -s, --concurrency <CONCURRENCY>  The number of concurrency request [default: 10]
+  -k, --chunk-size <CHUNK_SIZE>    The number ofinterval length of each concurrent request [default: '50m']
+  -t, --timeout <TIMEOUT>          Timeout(seconds) of request [default: 60]
+      --dns-timeout <DNS_TIMEOUT>  DNS Timeout(seconds) of request [default: 10]
+      --retries <RETRIES>          The maximum times of retring [default: 5]
+      --retry-wait <RETRY_WAIT>    The seconds between retries [default: 0]
+      --proxy <PROXY>              [protocol://]host[:port] Use this proxy
+      --type <TYPE>                Task type, auto/http/m3u8 [default: auto]
+      --debug                      Debug output. Print all trackback for debugging
+      --quiet                      Quiet mode. Don't show progress bar and task information. But still show the error information
+  -o, --out <OUT>                  The path of output for the request e.g. -o "/path/to/file"
+  -h, --help                       Print help
+  -V, --version                    Print version
 ```
 
 ## Configuration

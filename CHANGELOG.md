@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2024-01-11
+
+### Added
+
+- Add option `--insecure` to skip to verify the server's TLS certificate
+
 ## 0.5.0 - 2023-12-15
 
 ### Changed
