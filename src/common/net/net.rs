@@ -33,6 +33,7 @@ pub fn build_http_client(
     timeout: Duration,
     dns_timeout: Duration,
     keep_alive: Duration,
+    skip_verify_tls_cert: bool,
     proxy: Option<&str>,
 ) -> Result<HttpClient> {
     let mut default_headers = HeaderMap::new();
@@ -48,6 +49,11 @@ pub fn build_http_client(
         .connect_timeout(dns_timeout)
         .tcp_keepalive(keep_alive)
         .default_headers(default_headers);
+
+    if skip_verify_tls_cert {
+        client = client.danger_accept_invalid_certs(true);
+    }
+
     if let Some(url) = proxy {
         client = client.proxy(Proxy::all(url)?);
     }

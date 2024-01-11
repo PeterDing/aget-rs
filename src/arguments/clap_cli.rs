@@ -28,6 +28,12 @@ pub struct AgetCli {
     pub data: Option<String>,
 
     #[clap(
+        long,
+        help = "Skip to verify the server's TLS certificate"
+    )]
+    pub insecure: bool,
+
+    #[clap(
         short = 's',
         long,
         help = "The number of concurrency request [default: 10]"

@@ -28,29 +28,32 @@ pub trait Args {
     /// The maximum time the request is allowed to take.
     fn timeout(&self) -> Duration;
 
-    // Connection timeout
-    //
-    // i.e. max time to connect to remote host including dns name resolution.
-    // Set to 1 second by default.
+    /// Connection timeout
+    ///
+    /// i.e. max time to connect to remote host including dns name resolution.
+    /// Set to 1 second by default.
     fn dns_timeout(&self) -> Duration;
 
-    // Set keep-alive period for opened connection.
-    //
-    // Keep-alive period is the period between connection usage. If
-    // the delay between repeated usages of the same connection
-    // exceeds this period, the connection is closed.
-    // Default keep-alive period is 15 seconds.
+    /// Set keep-alive period for opened connection.
+    ///
+    /// Keep-alive period is the period between connection usage. If
+    /// the delay between repeated usages of the same connection
+    /// exceeds this period, the connection is closed.
+    /// Default keep-alive period is 15 seconds.
     fn keep_alive(&self) -> Duration;
 
-    // Set max lifetime period for connection.
-    //
-    // Connection lifetime is max lifetime of any opened connection
-    // until it is closed regardless of keep-alive period.
-    // Default lifetime period is 75 seconds.
+    /// Set max lifetime period for connection.
+    ///
+    /// Connection lifetime is max lifetime of any opened connection
+    /// until it is closed regardless of keep-alive period.
+    /// Default lifetime period is 75 seconds.
     fn lifetime(&self) -> Duration;
 
-    // Always return `true`
+    /// Always return `true`
     fn disable_redirects(&self) -> bool;
+
+    /// Skip to verify the server's TLS certificate
+    fn skip_verify_tls_cert(&self) -> bool;
 
     /// The number of concurrency
     fn concurrency(&self) -> u64;

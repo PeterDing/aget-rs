@@ -160,10 +160,10 @@ impl Args for CmdArgs {
         self.cli.proxy.as_deref()
     }
 
-    // Set request timeout
-    //
-    // Request timeout is the total time before a response must be received.
-    // Default value is 5 seconds.
+    /// Set request timeout
+    ///
+    /// Request timeout is the total time before a response must be received.
+    /// Default value is 5 seconds.
     fn timeout(&self) -> Duration {
         let timeout = match self.cli.timeout {
             Some(timeout) => timeout,
@@ -194,9 +194,14 @@ impl Args for CmdArgs {
         }
     }
 
-    // Always return `true`
+    /// Always return `true`
     fn disable_redirects(&self) -> bool {
         true
+    }
+
+    /// Skip to verify the server's TLS certificate
+    fn skip_verify_tls_cert(&self) -> bool {
+        return self.cli.insecure;
     }
 
     /// The number of concurrency

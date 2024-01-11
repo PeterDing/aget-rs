@@ -41,9 +41,17 @@ impl<'a> M3u8Handler<'a> {
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();
         let keep_alive = args.keep_alive();
+        let skip_verify_tls_cert = args.skip_verify_tls_cert();
         let proxy = args.proxy();
 
-        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive, proxy)?;
+        let client = build_http_client(
+            &headers,
+            timeout,
+            dns_timeout,
+            keep_alive,
+            skip_verify_tls_cert,
+            proxy,
+        )?;
 
         tracing::debug!("M3u8Handler::new");
 
