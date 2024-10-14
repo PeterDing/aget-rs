@@ -75,18 +75,13 @@ impl Args for CmdArgs {
         match self.cli.method.to_uppercase().as_str() {
             "GET" => Method::GET,
             "POST" => Method::POST,
-            _ => panic!(
-                "{:?}",
-                Error::UnsupportedMethod(self.cli.method.to_string())
-            ),
+            _ => panic!("{:?}", Error::UnsupportedMethod(self.cli.method.to_string())),
         }
     }
 
     /// The url of a task
     fn url(&self) -> Url {
-        escape_nonascii(&self.cli.url)
-            .parse()
-            .expect("URL is unvalidable")
+        escape_nonascii(&self.cli.url).parse().expect("URL is unvalidable")
     }
 
     /// The data for http post request
@@ -170,6 +165,7 @@ impl Args for CmdArgs {
             None => match self.task_type() {
                 TaskType::HTTP => self.config.timeout.unwrap_or(60),
                 TaskType::M3U8 => self.config.timeout.unwrap_or(30),
+                TaskType::BT => self.config.timeout.unwrap_or(60),
             },
         };
 
@@ -184,6 +180,7 @@ impl Args for CmdArgs {
         match self.task_type() {
             TaskType::HTTP => Duration::from_secs(60),
             TaskType::M3U8 => Duration::from_secs(10),
+            TaskType::BT => Duration::from_secs(60),
         }
     }
 
@@ -191,6 +188,7 @@ impl Args for CmdArgs {
         match self.task_type() {
             TaskType::HTTP => Duration::from_secs(0),
             TaskType::M3U8 => Duration::from_secs(0),
+            TaskType::BT => Duration::from_secs(0),
         }
     }
 
@@ -228,9 +226,7 @@ impl Args for CmdArgs {
 
     /// The number of retry of a task, default is 5
     fn retries(&self) -> u64 {
-        self.cli
-            .retries
-            .unwrap_or_else(|| self.config.retries.unwrap_or(5))
+        self.cli.retries.unwrap_or_else(|| self.config.retries.unwrap_or(5))
     }
 
     /// The internal of each retry, default is zero
@@ -245,16 +241,38 @@ impl Args for CmdArgs {
         match self.cli.tp.as_str() {
             "auto" => {
                 let url = self.url();
-                if url.path().to_lowercase().ends_with(".m3u8") {
+                if url.scheme() == "magnet" {
+                    TaskType::BT
+                } else if url.path().to_lowercase().ends_with(".torrent") {
+                    TaskType::BT
+                } else if url.path().to_lowercase().ends_with(".m3u8") {
                     TaskType::M3U8
-                } else {
+                } else if url.scheme().starts_with("http") {
                     TaskType::HTTP
+                } else {
+                    panic!("{:?}", Error::UnsupportedTask(self.cli.tp.clone()))
                 }
             }
             "http" => TaskType::HTTP,
             "m3u8" => TaskType::M3U8,
+            "bt" => TaskType::BT,
             _ => panic!("{:?}", Error::UnsupportedTask(self.cli.tp.clone())),
         }
+    }
+
+    /// A regex to only download files matching it in the torrent
+    fn bt_file_regex(&self) -> Option<String> {
+        self.cli.bt_file_regex.to_owned()
+    }
+
+    /// Seed the torrent
+    fn seed(&self) -> bool {
+        self.cli.seed
+    }
+
+    /// Trackers for the torrent
+    fn bt_trackers(&self) -> Option<Vec<String>> {
+        self.cli.bt_trackers.to_owned()
     }
 
     /// To debug mode, if it returns true

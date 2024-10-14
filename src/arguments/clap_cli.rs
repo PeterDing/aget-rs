@@ -13,31 +13,16 @@ pub struct AgetCli {
     )]
     pub method: String,
 
-    #[clap(
-        short = 'H',
-        long,
-        help = r#"Request headers, e.g. -H "User-Agent: aget""#
-    )]
+    #[clap(short = 'H', long, help = r#"Request headers, e.g. -H "User-Agent: aget""#)]
     pub header: Option<Vec<String>>,
 
-    #[clap(
-        short,
-        long,
-        help = r#"Request with POST method with the data, e.g. -d "a=b""#
-    )]
+    #[clap(short, long, help = r#"Request with POST method with the data, e.g. -d "a=b""#)]
     pub data: Option<String>,
 
-    #[clap(
-        long,
-        help = "Skip to verify the server's TLS certificate"
-    )]
+    #[clap(long, help = "Skip to verify the server's TLS certificate")]
     pub insecure: bool,
 
-    #[clap(
-        short = 's',
-        long,
-        help = "The number of concurrency request [default: 10]"
-    )]
+    #[clap(short = 's', long, help = "The number of concurrency request [default: 10]")]
     pub concurrency: Option<u64>,
 
     #[clap(
@@ -59,20 +44,30 @@ pub struct AgetCli {
     #[clap(long, help = "The seconds between retries [default: 0]")]
     pub retry_wait: Option<u64>,
 
-    #[clap(
-        long = "proxy",
-        name = "PROXY",
-        help = "[protocol://]host[:port] Use this proxy"
-    )]
+    #[clap(long = "proxy", name = "PROXY", help = "[protocol://]host[:port] Use this proxy")]
     pub proxy: Option<String>,
 
     #[clap(
         long = "type",
         name = "TYPE",
         default_value = "auto",
-        help = "Task type, auto/http/m3u8"
+        help = "Task type, auto/http/m3u8/bt"
     )]
     pub tp: String,
+
+    #[clap(long, help = "A regex to only download files matching it in the torrent")]
+    pub bt_file_regex: Option<String>,
+
+    #[clap(long, help = "Seed the torrent")]
+    pub seed: bool,
+
+    #[clap(
+        long,
+        value_delimiter = ',',
+        help = "Trackers for the torrent, e.g. --bt-trackers \"udp://tracker.opentrackr.org:1337/announce
+,udp://opentracker.io:6969/announce\""
+    )]
+    pub bt_trackers: Option<Vec<String>>,
 
     #[clap(long, help = "Debug output. Print all trackback for debugging")]
     pub debug: bool,
@@ -83,10 +78,6 @@ pub struct AgetCli {
     )]
     pub quiet: bool,
 
-    #[clap(
-        short,
-        long,
-        help = r#"The path of output for the request e.g. -o "/path/to/file""#
-    )]
+    #[clap(short, long, help = r#"The path of output for the request e.g. -o "/path/to/file""#)]
     pub out: Option<String>,
 }

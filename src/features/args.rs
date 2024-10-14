@@ -70,6 +70,15 @@ pub trait Args {
     /// Task type
     fn task_type(&self) -> TaskType;
 
+    /// A regex to only download files matching it in the torrent
+    fn bt_file_regex(&self) -> Option<String>;
+
+    /// Seed the torrent
+    fn seed(&self) -> bool;
+
+    /// Trackers for the torrent
+    fn bt_trackers(&self) -> Option<Vec<String>>;
+
     /// To debug mode, if it returns true
     fn debug(&self) -> bool;
 
