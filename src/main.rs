@@ -6,7 +6,7 @@ use time::{macros::format_description, UtcOffset};
 use tracing_subscriber::fmt::time::OffsetTime;
 
 use aget::{
-    app::core::{http::HttpHandler, m3u8::M3u8Handler},
+    app::core::{bt::BtHandler, http::HttpHandler, m3u8::M3u8Handler},
     arguments::cmd_args::CmdArgs,
     common::tasks::TaskType,
     features::{args::Args, running::Runnable},
@@ -48,6 +48,10 @@ fn main() {
             TaskType::M3U8 => {
                 let m3u8handler = M3u8Handler::new(&cmdargs).unwrap();
                 m3u8handler.run()
+            }
+            TaskType::BT => {
+                let bthandler = BtHandler::new(&cmdargs);
+                bthandler.run()
             }
         };
 
