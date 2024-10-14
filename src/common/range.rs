@@ -10,12 +10,7 @@ pub struct RangePair {
 
 impl RangePair {
     pub fn new(begin: u64, end: u64) -> RangePair {
-        assert!(
-            begin <= end,
-            "`RangePair::new`: begin > end: {} > {}",
-            begin,
-            end
-        );
+        assert!(begin <= end, "`RangePair::new`: begin > end: {} > {}", begin, end);
         RangePair { begin, end }
     }
 

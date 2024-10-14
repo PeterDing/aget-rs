@@ -26,12 +26,7 @@ pub type M3u8SegmentList = Vec<M3u8Segment>;
 
 pub type SharedM3u8SegmentList = SharedVec<M3u8Segment>;
 
-pub async fn get_m3u8(
-    client: &HttpClient,
-    method: Method,
-    url: Url,
-    data: Option<String>,
-) -> Result<M3u8SegmentList> {
+pub async fn get_m3u8(client: &HttpClient, method: Method, url: Url, data: Option<String>) -> Result<M3u8SegmentList> {
     // url -> (key, iv)
     let mut keymap: HashMap<Url, [u8; 16]> = HashMap::new();
     let mut urls = vec![url];

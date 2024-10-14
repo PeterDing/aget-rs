@@ -8,10 +8,7 @@ use crate::{
         show::http_show::HttpShower,
         status::rate_status::RateStatus,
     },
-    common::{
-        bytes::bytes_type::Bytes, errors::Result, file::File, range::RangePair,
-        time::interval_stream,
-    },
+    common::{bytes::bytes_type::Bytes, errors::Result, file::File, range::RangePair, time::interval_stream},
 };
 
 pub struct HttpReceiver {
@@ -24,19 +21,14 @@ pub struct HttpReceiver {
 }
 
 impl HttpReceiver {
-    pub fn new<P: AsRef<Path>>(
-        output: P,
-        direct: bool,
-        content_length: u64,
-    ) -> Result<HttpReceiver> {
+    pub fn new<P: AsRef<Path>>(output: P, direct: bool, content_length: u64) -> Result<HttpReceiver> {
         let mut outputfile = File::new(&output, true)?;
         outputfile.open()?;
 
         let (rangerecorder, total, completed) = if direct {
             (None, content_length, 0)
         } else {
-            let mut rangerecorder =
-                RangeRecorder::new(&*(output.as_ref().to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+            let mut rangerecorder = RangeRecorder::new(&*(output.as_ref().to_string_lossy() + RECORDER_FILE_SUFFIX))?;
             rangerecorder.open()?;
             let total = rangerecorder.total()?;
             let completed = rangerecorder.count()?;
@@ -58,8 +50,7 @@ impl HttpReceiver {
 
     fn show_infos(&mut self) -> Result<()> {
         if self.rangerecorder.is_none() {
-            self.shower
-                .print_msg("Server doesn't support range request.")?;
+            self.shower.print_msg("Server doesn't support range request.")?;
         }
 
         let file_name = &self.output.file_name().unwrap_or("[No Name]");

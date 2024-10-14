@@ -140,10 +140,7 @@ impl RangeRecorder {
         }
 
         for (index, RangePair { end, .. }) in pairs.iter().enumerate() {
-            if let Some(RangePair {
-                begin: next_start, ..
-            }) = pairs.get(index + 1)
-            {
+            if let Some(RangePair { begin: next_start, .. }) = pairs.get(index + 1) {
                 if end + 1 < *next_start {
                     gaps.push(RangePair::new(end + 1, next_start - 1));
                 }

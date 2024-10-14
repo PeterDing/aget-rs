@@ -44,8 +44,7 @@ impl ByteArrayRecorder {
     /// Read the index-th number
     pub fn index(&mut self, index: u64) -> Result<u64> {
         let mut buf: [u8; 8] = [0; 8];
-        self.inner
-            .read(&mut buf, Some(SeekFrom::Start(index * 8)))?;
+        self.inner.read(&mut buf, Some(SeekFrom::Start(index * 8)))?;
         Ok(u8x8_to_u64(&buf))
     }
 

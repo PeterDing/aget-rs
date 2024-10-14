@@ -36,12 +36,7 @@ impl M3u8Shower {
     }
 
     pub fn print_total(&mut self, total: u64) -> Result<()> {
-        writeln!(
-            &mut self.stdout,
-            "{}: {}",
-            Blue.bold().paint("Segments"),
-            total,
-        )?;
+        writeln!(&mut self.stdout, "{}: {}", Blue.bold().paint("Segments"), total,)?;
         Ok(())
     }
 
@@ -55,13 +50,7 @@ impl M3u8Shower {
         Ok(())
     }
 
-    pub fn print_status(
-        &mut self,
-        completed: u64,
-        total: u64,
-        length: u64,
-        rate: f64,
-    ) -> Result<()> {
+    pub fn print_status(&mut self, completed: u64, total: u64, length: u64, rate: f64) -> Result<()> {
         let percent = completed as f64 / total as f64;
 
         let completed_str = completed.to_string();
@@ -91,8 +80,7 @@ impl M3u8Shower {
         let bar_done_length = (bar_length as f64 * percent) as u64;
         let bar_undone_length = bar_length - bar_done_length;
 
-        let (bar_done_str, bar_undone_str) =
-            du_bars(bar_done_length as usize, bar_undone_length as usize);
+        let (bar_done_str, bar_undone_str) = du_bars(bar_done_length as usize, bar_undone_length as usize);
 
         write!(
             &mut self.stdout,

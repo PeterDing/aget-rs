@@ -16,9 +16,7 @@ pub fn parse_header(raw: &str) -> Result<(&str, &str), Error> {
     Err(Error::InvalidHeader(raw.to_string()))
 }
 
-pub fn parse_headers<'a, I: IntoIterator<Item = &'a str>>(
-    raws: I,
-) -> Result<Vec<(&'a str, &'a str)>, Error> {
+pub fn parse_headers<'a, I: IntoIterator<Item = &'a str>>(raws: I) -> Result<Vec<(&'a str, &'a str)>, Error> {
     let mut headers = vec![];
     for raw in raws {
         let pair = parse_header(raw)?;
@@ -72,15 +70,8 @@ pub fn is_success(resp: &reqwest::Response) -> Result<(), Error> {
 }
 
 /// Send a request with a range header, returning the final url
-pub async fn redirect(
-    client: &HttpClient,
-    method: Method,
-    url: Url,
-    data: Option<String>,
-) -> Result<Url> {
-    let mut req = client
-        .request(method.clone(), url.clone())
-        .header("range", "bytes=0-1");
+pub async fn redirect(client: &HttpClient, method: Method, url: Url, data: Option<String>) -> Result<Url> {
+    let mut req = client.request(method.clone(), url.clone()).header("range", "bytes=0-1");
 
     if let Some(d) = data {
         req = req.body(d);
@@ -99,9 +90,7 @@ pub async fn redirect_and_contentlength(
     url: Url,
     data: Option<String>,
 ) -> Result<(Url, ContentLengthValue)> {
-    let mut req = client
-        .request(method.clone(), url.clone())
-        .header("range", "bytes=0-1");
+    let mut req = client.request(method.clone(), url.clone()).header("range", "bytes=0-1");
     if let Some(d) = data.clone() {
         req = req.body(d);
     }
@@ -113,12 +102,7 @@ pub async fn redirect_and_contentlength(
 
     let status_code = resp.status();
     if status_code.as_u16() == 206 {
-        let cl_str = resp
-            .headers()
-            .get("content-range")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let cl_str = resp.headers().get("content-range").unwrap().to_str().unwrap();
         let index = cl_str.find('/').unwrap();
         let length = cl_str[index + 1..].parse::<u64>()?;
         return Ok((url, ContentLengthValue::RangeLength(length)));

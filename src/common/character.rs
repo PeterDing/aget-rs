@@ -1,11 +1,6 @@
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 
-const FRAGMENT: &AsciiSet = &CONTROLS
-    .add(b' ')
-    .remove(b'?')
-    .remove(b'/')
-    .remove(b':')
-    .remove(b'=');
+const FRAGMENT: &AsciiSet = &CONTROLS.add(b' ').remove(b'?').remove(b'/').remove(b':').remove(b'=');
 
 pub fn escape_nonascii(target: &str) -> String {
     utf8_percent_encode(target, FRAGMENT).to_string()

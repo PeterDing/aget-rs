@@ -26,13 +26,7 @@ impl HttpShower {
     }
 
     pub fn print_file(&mut self, path: &str) -> Result<()> {
-        writeln!(
-            &mut self.stdout,
-            // "\n     {}: {}",
-            "\n{}: {}",
-            Green.bold().paint("File"),
-            path,
-        )?;
+        writeln!(&mut self.stdout, "\n{}: {}", Green.bold().paint("File"), path,)?;
         Ok(())
     }
 
