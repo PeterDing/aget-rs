@@ -1,4 +1,10 @@
-use std::{cell::Cell, path::PathBuf, rc::Rc, time::Duration};
+use std::{
+    cell::Cell,
+    path::PathBuf,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use futures::{
     channel::mpsc::{channel, Sender},
@@ -44,14 +50,7 @@ impl<'a> M3u8Handler<'a> {
         let skip_verify_tls_cert = args.skip_verify_tls_cert();
         let proxy = args.proxy();
 
-        let client = build_http_client(
-            &headers,
-            timeout,
-            dns_timeout,
-            keep_alive,
-            skip_verify_tls_cert,
-            proxy,
-        )?;
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive, skip_verify_tls_cert, proxy)?;
 
         tracing::debug!("M3u8Handler::new");
 
@@ -71,8 +70,7 @@ impl<'a> M3u8Handler<'a> {
 
         // 0. Check whether task is completed
         tracing::debug!("M3u8Handler: check whether task is completed");
-        let mut bytearrayrecorder =
-            ByteArrayRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+        let mut bytearrayrecorder = ByteArrayRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
         if self.output.exists() && !bytearrayrecorder.exists() {
             return Ok(());
         }
@@ -112,6 +110,7 @@ impl<'a> M3u8Handler<'a> {
 
         // 3. Create channel
         let (sender, receiver) = channel::<(u64, Bytes)>(self.concurrency as usize + 10);
+        let runtime_error: Arc<Mutex<Option<Error>>> = Arc::new(Mutex::new(None));
 
         // 4. Spawn request task
         let concurrency = std::cmp::min(stack.len() as u64, self.concurrency);
@@ -124,8 +123,13 @@ impl<'a> M3u8Handler<'a> {
                 sharedindex.clone(),
                 self.timeout,
             );
+            let runtime_error_clone = runtime_error.clone();
             actix_rt::spawn(async move {
-                task.start().await;
+                if let Err(err) = task.start().await {
+                    if runtime_error_clone.lock().unwrap().is_none() {
+                        *runtime_error_clone.lock().unwrap() = Some(err);
+                    }
+                }
             });
         }
         drop(sender); // Remove the reference and let `Task` to handle it
@@ -135,7 +139,13 @@ impl<'a> M3u8Handler<'a> {
         let mut m3u8receiver = M3u8Receiver::new(&self.output)?;
         m3u8receiver.start(receiver).await?;
 
-        // 6. Task succeeds. Remove `ByteArrayRecorder` file
+        if let Some(err) = runtime_error.lock().unwrap().take() {
+            return Err(err);
+        }
+
+        // 6. Fixup output file
+
+        // 7. Task succeeds. Remove `ByteArrayRecorder` file
         bytearrayrecorder.remove().unwrap_or(()); // Missing error
         Ok(())
     }
@@ -177,7 +187,7 @@ impl RequestTask {
         }
     }
 
-    async fn start(&mut self) {
+    async fn start(&mut self) -> Result<()> {
         tracing::debug!("Fire RequestTask: {}", self.id);
         while let Some(segment) = self.stack.pop() {
             loop {
@@ -192,12 +202,13 @@ impl RequestTask {
                     }
                     Err(err) => {
                         tracing::debug!("RequestTask {}: error: {:?}", self.id, err);
-                        actix_rt::time::sleep(Duration::from_secs(1)).await;
+                        return Err(err);
                     }
                     _ => break,
                 }
             }
         }
+        Ok(())
     }
 
     async fn req(&mut self, segment: M3u8Segment) -> Result<()> {

@@ -1,4 +1,9 @@
-use std::{fmt, path::PathBuf, time::Duration};
+use std::{
+    fmt,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use futures::{
     channel::mpsc::{channel, Sender},
@@ -57,14 +62,7 @@ impl<'a> HttpHandler<'a> {
         let skip_verify_tls_cert = args.skip_verify_tls_cert();
         let proxy = args.proxy();
 
-        let client = build_http_client(
-            &headers,
-            timeout,
-            dns_timeout,
-            keep_alive,
-            skip_verify_tls_cert,
-            proxy,
-        )?;
+        let client = build_http_client(&headers, timeout, dns_timeout, keep_alive, skip_verify_tls_cert, proxy)?;
 
         tracing::debug!("HttpHandler::new");
 
@@ -87,8 +85,7 @@ impl<'a> HttpHandler<'a> {
 
         // 0. Check whether task is completed
         tracing::debug!("HttpHandler: check whether task is completed");
-        let mut rangerecorder =
-            RangeRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
+        let mut rangerecorder = RangeRecorder::new(&*(self.output.to_string_lossy() + RECORDER_FILE_SUFFIX))?;
         if self.output.exists() && !rangerecorder.exists() {
             return Ok(());
         }
@@ -158,6 +155,7 @@ impl<'a> HttpHandler<'a> {
 
         // 3. Create channel
         let (sender, receiver) = channel::<(RangePair, Bytes)>(self.concurrency as usize + 10);
+        let runtime_error: Arc<Mutex<Option<Error>>> = Arc::new(Mutex::new(None));
 
         // 4. Dispatch Task
         tracing::debug!("HttpHandler: dispatch task: direct: {}", direct);
@@ -170,8 +168,13 @@ impl<'a> HttpHandler<'a> {
                 self.data.map(|v| v.to_string()),
                 sender.clone(),
             );
+            let runtime_error_clone = runtime_error.clone();
             actix_rt::spawn(async move {
-                task.start().await;
+                if let Err(err) = task.start().await {
+                    if runtime_error_clone.lock().unwrap().is_none() {
+                        *runtime_error_clone.lock().unwrap() = Some(err);
+                    }
+                }
             });
         } else {
             // Make range pairs stack
@@ -198,8 +201,13 @@ impl<'a> HttpHandler<'a> {
                     i,
                     self.timeout,
                 );
+                let runtime_error_clone = runtime_error.clone();
                 actix_rt::spawn(async move {
-                    task.start().await;
+                    if let Err(err) = task.start().await {
+                        if runtime_error_clone.lock().unwrap().is_none() {
+                            *runtime_error_clone.lock().unwrap() = Some(err);
+                        }
+                    }
                 });
             }
         }
@@ -209,6 +217,10 @@ impl<'a> HttpHandler<'a> {
         tracing::debug!("HttpHandler: create receiver");
         let mut httpreceiver = HttpReceiver::new(&self.output, direct, content_length)?;
         httpreceiver.start(receiver).await?;
+
+        if let Some(err) = runtime_error.lock().unwrap().take() {
+            return Err(err);
+        }
 
         // 6. Task succeeds. Remove rangerecorder file
         rangerecorder.remove().unwrap_or(()); // Missing error
@@ -251,45 +263,43 @@ impl DirectRequestTask {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn start(&mut self) {
-        loop {
-            let resp = request(
-                &self.client,
-                self.method.clone(),
-                self.url.clone(),
-                self.data.clone(),
-                None,
-            )
-            .await;
-            if let Err(err) = resp {
-                tracing::error!("DirectRequestTask request error: {:?}", err);
-                continue;
-            }
-            let resp = resp.unwrap();
-            let mut stream = resp.bytes_stream();
+    async fn start(&mut self) -> Result<()> {
+        let resp = request(
+            &self.client,
+            self.method.clone(),
+            self.url.clone(),
+            self.data.clone(),
+            None,
+        )
+        .await;
+        if let Err(err) = resp {
+            tracing::error!("DirectRequestTask request error: {:?}", err);
+            return Err(err);
+        }
+        let resp = resp.unwrap();
+        let mut stream = resp.bytes_stream();
 
-            let mut offset = 0u64;
-            while let Some(item) = stream.next().await {
-                match item {
-                    Ok(chunk) => {
-                        let len = chunk.len();
-                        if len == 0 {
-                            continue;
-                        }
+        let mut offset = 0u64;
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(chunk) => {
+                    let len = chunk.len();
+                    if len == 0 {
+                        continue;
+                    }
 
-                        let pair = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
-                        self.sender.send((pair, chunk)).await.unwrap();
-                        offset += len as u64;
-                    }
-                    Err(err) => {
-                        tracing::error!("DirectRequestTask read error: {:?}", err);
-                        break;
-                    }
+                    let pair = RangePair::new(offset, offset + len as u64 - 1); // The pair is a closed interval
+                    self.sender.send((pair, chunk)).await.unwrap();
+                    offset += len as u64;
+                }
+                Err(err) => {
+                    tracing::error!("DirectRequestTask read error: {:?}", err);
+                    break;
                 }
             }
-
-            break;
         }
+
+        Ok(())
     }
 }
 
@@ -330,7 +340,7 @@ impl RangeRequestTask {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn start(&mut self) {
+    async fn start(&mut self) -> Result<()> {
         tracing::debug!("Fire RangeRequestTask: {}", self.id);
         while let Some(pair) = self.stack.pop() {
             match self.req(pair).await {
@@ -342,12 +352,15 @@ impl RangeRequestTask {
                 Err(err @ Error::Timeout) => {
                     tracing::debug!("RangeRequestTask timeout: {}", err); // Missing Timeout at runtime
                 }
+                // Return other response errors
                 Err(err) => {
                     tracing::debug!("RangeRequestTask {}: error: {}", self.id, err);
+                    return Err(err);
                 }
                 _ => {}
             }
         }
+        Ok(())
     }
 
     async fn req(&mut self, pair: RangePair) -> Result<()> {
