@@ -1,10 +1,9 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use librqbit::{
-    api::TorrentIdOrHash, AddTorrent, AddTorrentOptions, AddTorrentResponse, Api, PeerConnectionOptions, Session,
-    SessionOptions, SessionPersistenceConfig,
+    api::TorrentIdOrHash, dht::PersistentDhtConfig, AddTorrent, AddTorrentOptions, AddTorrentResponse, Api,
+    PeerConnectionOptions, Session, SessionOptions, SessionPersistenceConfig,
 };
-use md5::Digest;
 use url::Url;
 
 use crate::{
@@ -34,37 +33,14 @@ impl BtHandler {
         }
     }
 
-    fn task_key(&self) -> Result<String> {
-        let torrent_or_magnet = &self.torrent_or_magnet;
-        if torrent_or_magnet.scheme() == "magnet" {
-            for (key, value) in torrent_or_magnet.query_pairs() {
-                match key.as_ref() {
-                    "xt" => {
-                        if let Some(ih) = value.as_ref().strip_prefix("urn:btih:") {
-                            return Ok(ih.to_lowercase().to_string());
-                        } else if let Some(ih) = value.as_ref().strip_prefix("urn:btmh:1220") {
-                            return Ok(ih.to_lowercase().to_string());
-                        } else {
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            return Err(Error::BitTorrentError("magnet link missing no info hash".to_string()));
-        } else {
-            let mut hasher = md5::Md5::new();
-            hasher.update(torrent_or_magnet.as_str());
-            let hash = hasher.finalize();
-            Ok(format!("{:x}", hash).to_lowercase())
-        }
-    }
-
     async fn start(self) -> Result<()> {
         tracing::debug!("BtHandler::start");
 
         let output_dir = &self.output;
-        let task_key = self.task_key()?;
-        let persistence_dir = output_dir.join(task_key + ".bt.aget");
+        let persistence_dir = output_dir
+            .join("..")
+            .join(output_dir.file_name().unwrap().to_string_lossy().to_string() + ".bt.aget");
+        let dht_config_filename = persistence_dir.join("dht.json");
 
         // 0. Check whether task is completed
         tracing::debug!("BtHandler: check whether task is completed");
@@ -77,6 +53,10 @@ impl BtHandler {
         let sopts = SessionOptions {
             disable_dht: false,
             disable_dht_persistence: false,
+            dht_config: Some(PersistentDhtConfig {
+                config_filename: Some(dht_config_filename),
+                ..Default::default()
+            }),
             peer_id: None,
             peer_opts: Some(PeerConnectionOptions {
                 connect_timeout: Some(Duration::from_secs(10)),

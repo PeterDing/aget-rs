@@ -118,6 +118,8 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 
 - Download a torrent or magnet link
 
+  Warning: The `/path/to/outdir` directory below command must NOT exist. It will be created automatically.
+
   ```shell
   ag "magnet:..." -o /path/to/outdir
   ag "/path/to/torrent" -o /path/to/outdir

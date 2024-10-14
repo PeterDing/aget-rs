@@ -1,6 +1,6 @@
 [package]
 name = "aget-rs"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["PeterDing <dfhayst@gmail.com>"]
 homepage = "https://github.com/PeterDing/aget-rs"
 description="Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
@@ -41,7 +41,6 @@ thiserror = "1.0"
 # for crypto
 aes = "0.8"
 cbc = { version = "0.1", features = ["alloc", "block-padding"] }
-md-5 = "0.10"
 
 # utilities
 term_size = "0.3"
@@ -57,7 +56,7 @@ dirs = "5.0"
 m3u8-rs = "6"
 
 # for torrent
-librqbit = { git = "https://github.com/ikatson/rqbit.git", branch = "main" }
+librqbit = { git = "https://github.com/ikatson/rqbit.git", branch = "main", features = ["rust-tls"], default-features = false }
 
 # for tracing
 tracing = "0.1"

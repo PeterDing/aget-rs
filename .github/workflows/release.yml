@@ -61,45 +61,53 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - build: linux
+          - build: linux-x86_64-musl
             os: ubuntu-latest
-            rust: nightly
+            rust: stable
             target: x86_64-unknown-linux-musl
             strip: x86_64-linux-musl-strip
-          - build: stable-aarch64
+
+          - build: linux-x86_64-gnu
+            os: ubuntu-latest
+            rust: stable
+            target: x86_64-unknown-linux-gnu
+            strip: strip
+
+          - build: stable-aarch64-musl
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-musl
+            strip: aarch64-linux-musl-strip
+            qemu: qemu-aarch64
+
+          - build: stable-aarch64-gnu
             os: ubuntu-latest
             rust: stable
             target: aarch64-unknown-linux-gnu
             strip: aarch64-linux-gnu-strip
             qemu: qemu-aarch64
-          - build: stable-powerpc64
-            os: ubuntu-latest
-            rust: stable
-            target: powerpc64-unknown-linux-gnu
-            strip: powerpc64-linux-gnu-strip
-            qemu: qemu-ppc64
-          - build: stable-s390x
-            os: ubuntu-latest
-            rust: stable
-            target: s390x-unknown-linux-gnu
-            strip: s390x-linux-gnu-strip
-            qemu: qemu-s390x
+
           - build: macos
             os: macos-latest
-            rust: nightly
+            rust: stable
             target: x86_64-apple-darwin
+
           - build: win-msvc
             os: windows-latest
-            rust: nightly
+            rust: stable
             target: x86_64-pc-windows-msvc
+
           - build: win-gnu
             os: windows-latest
-            rust: nightly-x86_64-gnu
+            rust: stable-x86_64-gnu
             target: x86_64-pc-windows-gnu
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - if: contains(matrix.target, 'x86')
+        uses: ilammy/setup-nasm@v1
 
       - name: Install packages (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -141,6 +149,18 @@ jobs:
           echo "target flag is: ${{ env.TARGET_FLAGS }}"
           echo "target dir is: ${{ env.TARGET_DIR }}"
 
+      - name: Install dependencies for aws-lc-rs
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            echo 'LIBCLANG_PATH="C:\Program Files\LLVM\bin"' >> $GITHUB_ENV
+            echo 'AWS_LC_SYS_PREBUILT_NASM=1' >> $GITHUB_ENV
+            cargo install --force --locked bindgen-cli
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            sudo apt-get install -y build-essential cmake golang libclang1 libclang-dev
+            cargo install --force --locked bindgen-cli
+          fi
+
       - name: Build release binary
         shell: bash
         run: |
@@ -181,8 +201,8 @@ jobs:
           cp {README.md,LICENSE-APACHE,LICENSE-MIT} "$ARCHIVE"/
 
       - name: Build archive (Windows)
-        shell: bash
         if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
           7z a "$ARCHIVE.zip" "$ARCHIVE"
           certutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
@@ -190,8 +210,8 @@ jobs:
           echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
 
       - name: Build archive (Unix)
-        shell: bash
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           tar czf "$ARCHIVE.tar.gz" "$ARCHIVE"
           shasum -a 256 "$ARCHIVE.tar.gz" > "$ARCHIVE.tar.gz.sha256"
