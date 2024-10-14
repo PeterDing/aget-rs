@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/PeterDing/aget-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/PeterDing/aget-rs/actions/workflows/ci.yml)
 
-`aget-rs` is a fast asynchronous downloader wrote with Rust.  
+`aget-rs` is a fast asynchronous downloader written in Rust.  
 It requests a resource with a number of concurrent asynchronous request in a single thread.
 
 Especially, the concurrent amount can be any positive number as your wish.
 
-`aget-rs` supports to download a **HTTP/S** link and a **M3U8** video link.
+`aget-rs` supports to download a **HTTP/S** link, a **M3U8** video link, a **Torrent** and a **magnet** link.
 
 ## Installation
 
@@ -44,7 +44,7 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
   time ag http://localhost:9010/abc -s 10 -k 1m
       File: abc
     Length: 10.0M (10485760)
-  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>] 
+  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>]
   real	0m10.016s
   user	0m0.040s
   sys	0m0.020s
@@ -58,7 +58,7 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
   time ag http://localhost:9010/abc -s 100 -k 103k
       File: abc
     Length: 10.0M (10485760)
-  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>] 
+  10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>]
   real	0m2.016s
   user	0m0.087s
   sys	0m0.029s
@@ -66,54 +66,80 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 
   **time cost: 2s, 50 times faster than curl**
 
-
 ## Usage
 
 - Request a resource with default configuration
 
-   The default concurrent amount is `10` and chunk length is `1m`.
+  The default concurrent amount is `10` and chunk length is `1m`.
 
-   ```shell
-   ag http://cdimage.ubuntu.com/ubuntu/releases/18.10/release/ubuntu-18.10-server-amd64.iso
-   ```
+  ```shell
+  ag http://cdimage.ubuntu.com/ubuntu/releases/18.10/release/ubuntu-18.10-server-amd64.iso
+  ```
 
 - Set concurrent amount and chunk length
 
-   Use `-s` or `--concurrency` to set the number of concurrent request.  
+  Use `-s` or `--concurrency` to set the number of concurrent request.  
    Use `-k` or `--chunk-size` to set the chunk length of each request.  
    `--chunk-size` takes a literal size description, example `1k` for one Kilobyte,  
-   `2m` for two Megabyte, `1g` for Gigabyte.  
+   `2m` for two Megabyte, `1g` for Gigabyte.
 
-   ```shell
-   ag "url of resource" -s 20 -k 1m
-   ```
+  ```shell
+  ag "url of resource" -s 20 -k 1m
+  ```
 
 - Set a path for output
 
-   Use `-o` or `--out` to set the path.  
-   If the argument is not gave, we take the last part of the url' path as the path.  
+  Use `-o` or `--out` to set the path.  
+   If the argument is not gave, we take the last part of the url' path as the path.
 
-   ```shell
-   ag "url of resource" -o /path/to/file
-   ```
+  ```shell
+  ag "url of resource" -o /path/to/file
+  ```
+
+  When download a torrent or magnet link, the path is the output directory.
 
 - Set request headers
 
-   Use `-H` to set headers.  
+  Use `-H` to set headers.
 
-   ```shell
-   ag "url of resource" -H "Cookie: key=value" -H "Accept: */*"
-   ```
+  ```shell
+  ag "url of resource" -H "Cookie: key=value" -H "Accept: */*"
+  ```
 
 - Set request method and data
 
-   Use `-X` or `--method` to set method for http, example, `GET`, `POST`.  
+  Use `-X` or `--method` to set method for http, example, `GET`, `POST`.  
    The default method is `GET`.  
-   With a data, using `-d` or `--data`, example, `a=b`  
+   With a data, using `-d` or `--data`, example, `a=b`
 
-   ```shell
-   ag "url of resource" -d "a=b"
-   ```
+  ```shell
+  ag "url of resource" -d "a=b"
+  ```
+
+- Download a torrent or magnet link
+
+  ```shell
+  ag "magnet:..." -o /path/to/outdir
+  ag "/path/to/torrent" -o /path/to/outdir
+  ```
+
+  Use `--bt-file-regex` to only download files matching it in the torrent.
+
+  ```shell
+  ag "magnet:..." -o /path/to/outdir --bt-file-regex ".*\.mp4"
+  ```
+
+  Use `--seed` to seed the torrent after downloaded.
+
+  ```shell
+  ag "magnet:..." -o /path/to/outdir --seed
+  ```
+
+  Use `--bt-trackers` to specify trackers with comma as delimiter.
+
+  ```shell
+  ag "magnet:..." -o /path/to/outdir --bt-trackers "udp://tracker.opentrackr.org:1337/announce,udp://opentracker.io:6969/announce"
+  ```
 
 ## Options
 
@@ -124,23 +150,27 @@ Arguments:
   <URL>
 
 Options:
-  -m, --method <METHOD>            Request method, e.g. GET, POST [default: GET]
-  -H, --header <HEADER>            Request headers, e.g. -H "User-Agent: aget"
-  -d, --data <DATA>                Request with POST method with the data, e.g. -d "a=b"
-      --insecure                   Skip to verify the server's TLS certificate
-  -s, --concurrency <CONCURRENCY>  The number of concurrency request [default: 10]
-  -k, --chunk-size <CHUNK_SIZE>    The number ofinterval length of each concurrent request [default: '50m']
-  -t, --timeout <TIMEOUT>          Timeout(seconds) of request [default: 60]
-      --dns-timeout <DNS_TIMEOUT>  DNS Timeout(seconds) of request [default: 10]
-      --retries <RETRIES>          The maximum times of retring [default: 5]
-      --retry-wait <RETRY_WAIT>    The seconds between retries [default: 0]
-      --proxy <PROXY>              [protocol://]host[:port] Use this proxy
-      --type <TYPE>                Task type, auto/http/m3u8 [default: auto]
-      --debug                      Debug output. Print all trackback for debugging
-      --quiet                      Quiet mode. Don't show progress bar and task information. But still show the error information
-  -o, --out <OUT>                  The path of output for the request e.g. -o "/path/to/file"
-  -h, --help                       Print help
-  -V, --version                    Print version
+  -m, --method <METHOD>                Request method, e.g. GET, POST [default: GET]
+  -H, --header <HEADER>                Request headers, e.g. -H "User-Agent: aget"
+  -d, --data <DATA>                    Request with POST method with the data, e.g. -d "a=b"
+      --insecure                       Skip to verify the server's TLS certificate
+  -s, --concurrency <CONCURRENCY>      The number of concurrency request [default: 10]
+  -k, --chunk-size <CHUNK_SIZE>        The number ofinterval length of each concurrent request [default: '50m']
+  -t, --timeout <TIMEOUT>              Timeout(seconds) of request [default: 60]
+      --dns-timeout <DNS_TIMEOUT>      DNS Timeout(seconds) of request [default: 10]
+      --retries <RETRIES>              The maximum times of retring [default: 5]
+      --retry-wait <RETRY_WAIT>        The seconds between retries [default: 0]
+      --proxy <PROXY>                  [protocol://]host[:port] Use this proxy
+      --type <TYPE>                    Task type, auto/http/m3u8/bt [default: auto]
+      --bt-file-regex <BT_FILE_REGEX>  A regex to only download files matching it in the torrent
+      --seed                           Seed the torrent
+      --bt-trackers <BT_TRACKERS>      Trackers for the torrent, e.g. --bt-trackers "udp://tracker.opentrackr.org:1337/announce
+                                       ,udp://opentracker.io:6969/announce"
+      --debug                          Debug output. Print all trackback for debugging
+      --quiet                          Quiet mode. Don't show progress bar and task information. But still show the error information
+  -o, --out <OUT>                      The path of output for the request e.g. -o "/path/to/file"
+  -h, --help                           Print help
+  -V, --version                        Print version
 ```
 
 ## Configuration
