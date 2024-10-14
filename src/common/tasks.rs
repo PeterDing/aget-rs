@@ -2,4 +2,5 @@
 pub enum TaskType {
     HTTP,
     M3U8,
+    BT,
 }
