@@ -63,6 +63,10 @@ pub enum Error {
     #[error("The two m3u8 parts are not equal between the response and the aget file.")]
     PartsAreNotConsistent,
 
+    // For torrent
+    #[error("BitTorrent session error: {0}")]
+    BitTorrentError(String),
+
     #[error("An internal error: {0}")]
     InnerError(String),
     #[error("Content does not has length")]
