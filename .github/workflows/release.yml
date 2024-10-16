@@ -66,18 +66,21 @@ jobs:
             rust: stable
             target: x86_64-unknown-linux-musl
             strip: x86_64-linux-musl-strip
+            use-cross: true
 
           - build: linux-x86_64-gnu
             os: ubuntu-latest
             rust: stable
             target: x86_64-unknown-linux-gnu
             strip: strip
+            use-cross: true
 
           - build: stable-aarch64-musl
             os: ubuntu-latest
             rust: stable
             target: aarch64-unknown-linux-musl
             strip: aarch64-linux-musl-strip
+            use-cross: true
             qemu: qemu-aarch64
 
           - build: stable-aarch64-gnu
@@ -85,12 +88,19 @@ jobs:
             rust: stable
             target: aarch64-unknown-linux-gnu
             strip: aarch64-linux-gnu-strip
+            use-cross: true
             qemu: qemu-aarch64
 
-          - build: macos
+          - build: macos-x86_64
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
+
+          - build: macos-aarch64
+            os: macos-latest
+            rust: stable
+            use-cross: true
+            target: aarch64-apple-darwin
 
           - build: win-msvc
             os: windows-latest
@@ -102,6 +112,11 @@ jobs:
             rust: stable-x86_64-gnu
             target: x86_64-pc-windows-gnu
 
+          - build: win-msvc-aarch64
+            os: windows-latest
+            rust: stable
+            target: aarch64-pc-windows-msvc
+            use-cross: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -122,18 +137,15 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Use Cross
-        if: matrix.os == 'ubuntu-latest' && matrix.target != ''
+        if: matrix.use-cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Set CARGO
+        if: matrix.use-cross
         shell: bash
         run: |
-          # In the past, new releases of 'cross' have broken CI. So for now, we
-          # pin it. We also use their pre-compiled binary releases because cross
-          # has over 100 dependencies and takes a bit to compile.
-          dir="$RUNNER_TEMP/cross-download"
-          mkdir "$dir"
-          echo "$dir" >> $GITHUB_PATH
-          cd "$dir"
-          curl -LO "https://github.com/cross-rs/cross/releases/download/$CROSS_VERSION/cross-x86_64-unknown-linux-musl.tar.gz"
-          tar xf cross-x86_64-unknown-linux-musl.tar.gz
           echo "CARGO=cross" >> $GITHUB_ENV
 
       - name: Set target variables
@@ -178,7 +190,7 @@ jobs:
         run: strip "$BIN"
 
       - name: Strip release binary (cross)
-        if: env.CARGO == 'cross'
+        if: env.CARGO == 'cross' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           docker run --rm -v \
