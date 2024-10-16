@@ -77,10 +77,15 @@ impl HttpShower {
 
         // set default info length
         let info_length = 41;
-        let miss = info_length - info.len();
+        let mut miss = info_length - info.len();
 
         let terminal_width = terminal_width();
-        let bar_length = terminal_width - info_length as u64 - 3;
+        let bar_length = if terminal_width > info_length as u64 + 3 {
+            terminal_width - info_length as u64 - 3
+        } else {
+            miss = 0;
+            0
+        };
 
         let (bar_done_str, bar_undone_str) = if total != 0 {
             let bar_done_length = (bar_length as f64 * percent) as u64;

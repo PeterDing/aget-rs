@@ -73,13 +73,18 @@ impl M3u8Shower {
 
         // set default info length
         let info_length = total_str.len() * 2 + 26;
-        let miss = info_length - info.len();
+        let mut miss = info_length - info.len();
 
         let terminal_width = terminal_width();
-        let bar_length = terminal_width - info_length as u64 - 3;
+        let bar_length = if terminal_width > info_length as u64 + 3 {
+            terminal_width - info_length as u64 - 3
+        } else {
+            miss = 0;
+            0
+        };
+
         let bar_done_length = (bar_length as f64 * percent) as u64;
         let bar_undone_length = bar_length - bar_done_length;
-
         let (bar_done_str, bar_undone_str) = du_bars(bar_done_length as usize, bar_undone_length as usize);
 
         write!(

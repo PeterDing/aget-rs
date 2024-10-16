@@ -87,11 +87,16 @@ impl BtShower {
         );
 
         // set default info length
-        let info_length = 71;
-        let miss = info_length - info.len();
+        let info_length = 80;
+        let mut miss = info_length - info.len();
 
         let terminal_width = terminal_width();
-        let bar_length = terminal_width - info_length as u64 - 3;
+        let bar_length = if terminal_width > info_length as u64 + 3 {
+            terminal_width - info_length as u64 - 3
+        } else {
+            miss = 0;
+            0
+        };
 
         let (bar_done_str, bar_undone_str) = if total != 0 {
             let bar_done_length = (bar_length as f64 * percent) as u64;
@@ -104,7 +109,6 @@ impl BtShower {
         write!(
             &mut self.stdout,
             "\r{completed}/{total} {percent}% ↓{down_rate}/s ↑{up_rate}/s({uploaded}) eta: {eta} peers: {live}/{queued}{miss} {bar_done}{bar_undone}  ",
-            // "\r{completed}/{total} {percent}% {down_rate}/s eta: {eta}{miss} {bar_done}{bar_undone}  ",
             completed = Red.bold().paint(completed_str),
             total = Green.bold().paint(total_str),
             percent = Yellow.bold().paint(percent_str),
@@ -124,14 +128,13 @@ impl BtShower {
                 bar_undone_str
             }
         )?;
-
         self.stdout.flush()?;
-
         Ok(())
     }
 
     pub fn print_completed_file(&mut self, name: &str) -> Result<()> {
         writeln!(&mut self.stdout, "\n{}: {}", Green.italic().paint("Completed"), name,)?;
+        self.stdout.flush()?;
         Ok(())
     }
 }
