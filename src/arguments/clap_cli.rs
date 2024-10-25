@@ -69,6 +69,15 @@ pub struct AgetCli {
     )]
     pub bt_trackers: Option<Vec<String>>,
 
+    #[clap(long, help = "Peer connect timeout in seconds. [default: 10]")]
+    pub bt_peer_connect_timeout: Option<u64>,
+
+    #[clap(long, help = "Peer read/write timeout in seconds. [default: 10]")]
+    pub bt_peer_read_write_timeout: Option<u64>,
+
+    #[clap(long, help = "Peer keep-alive interval in seconds. [default: 120]")]
+    pub bt_peer_keep_alive_interval: Option<u64>,
+
     #[clap(long, help = "Debug output. Print all trackback for debugging")]
     pub debug: bool,
 

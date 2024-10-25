@@ -275,6 +275,21 @@ impl Args for CmdArgs {
         self.cli.bt_trackers.to_owned()
     }
 
+    /// Peer connect timeout
+    fn bt_peer_connect_timeout(&self) -> Option<u64> {
+        self.cli.bt_peer_connect_timeout
+    }
+
+    /// Peer read/write timeout
+    fn bt_peer_read_write_timeout(&self) -> Option<u64> {
+        self.cli.bt_peer_read_write_timeout
+    }
+
+    /// Peer keep alive interval
+    fn bt_peer_keep_alive_interval(&self) -> Option<u64> {
+        self.cli.bt_peer_keep_alive_interval
+    }
+
     /// To debug mode, if it returns true
     fn debug(&self) -> bool {
         self.cli.debug
@@ -305,6 +320,12 @@ impl fmt::Debug for CmdArgs {
             .field("retries", &self.retries())
             .field("retry_wait", &self.retry_wait())
             .field("task_type", &self.task_type())
+            .field("bt_file_regex", &self.bt_file_regex())
+            .field("seed", &self.seed())
+            .field("bt_trackers", &self.bt_trackers())
+            .field("bt_peer_connect_timeout", &self.bt_peer_connect_timeout())
+            .field("bt_peer_read_write_timeout", &self.bt_peer_read_write_timeout())
+            .field("bt_peer_keep_alive_interval", &self.bt_peer_keep_alive_interval())
             .field("debug", &self.debug())
             .field("quiet", &self.quiet())
             .finish()

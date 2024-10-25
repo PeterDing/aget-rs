@@ -18,6 +18,9 @@ pub struct BtHandler {
     file_regex: Option<String>,
     seed: bool,
     trackers: Option<Vec<String>>,
+    peer_connect_timeout: Option<u64>,
+    peer_read_write_timeout: Option<u64>,
+    peer_keep_alive_interval: Option<u64>,
 }
 
 impl BtHandler {
@@ -30,6 +33,9 @@ impl BtHandler {
             file_regex: args.bt_file_regex(),
             seed: args.seed(),
             trackers: args.bt_trackers(),
+            peer_connect_timeout: args.bt_peer_connect_timeout(),
+            peer_read_write_timeout: args.bt_peer_read_write_timeout(),
+            peer_keep_alive_interval: args.bt_peer_keep_alive_interval(),
         }
     }
 
@@ -59,9 +65,9 @@ impl BtHandler {
             }),
             peer_id: None,
             peer_opts: Some(PeerConnectionOptions {
-                connect_timeout: Some(Duration::from_secs(10)),
-                read_write_timeout: Some(Duration::from_secs(30)),
-                ..Default::default()
+                connect_timeout: self.peer_connect_timeout.map(Duration::from_secs),
+                read_write_timeout: self.peer_read_write_timeout.map(Duration::from_secs),
+                keep_alive_interval: self.peer_keep_alive_interval.map(Duration::from_secs),
             }),
             fastresume: true,
             persistence: Some(SessionPersistenceConfig::Json {
@@ -120,6 +126,7 @@ impl BtHandler {
         // 4. Start seeding
         if self.seed {
             tracing::debug!("BtHandler: start seeding");
+            println!("\nSeeding...");
         }
         while self.seed {
             actix_rt::time::sleep(Duration::from_secs(1)).await;

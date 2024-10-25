@@ -79,6 +79,15 @@ pub trait Args {
     /// Trackers for the torrent
     fn bt_trackers(&self) -> Option<Vec<String>>;
 
+    /// Peer connect timeout
+    fn bt_peer_connect_timeout(&self) -> Option<u64>;
+
+    /// Peer read/write timeout
+    fn bt_peer_read_write_timeout(&self) -> Option<u64>;
+
+    /// Peer keep alive interval
+    fn bt_peer_keep_alive_interval(&self) -> Option<u64>;
+
     /// To debug mode, if it returns true
     fn debug(&self) -> bool;
 
