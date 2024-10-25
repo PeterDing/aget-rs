@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.2 - 2024-10-25
+
+### Added
+
+- Add `--bt-peer-connect-timeout`, `--bt-peer-read-write-timeout` and `--bt-peer-keep-alive-interval` options.
+
+## 0.6.1 - 2024-10-16
+
+### Fixed
+
+- Fix overflow when progress bar length is small
+
+## 0.6.0 - 2024-10-14
+
+### Added
+
+Support torrent and magnet link
+
 ## 0.5.1 - 2024-01-11
 
 ### Added

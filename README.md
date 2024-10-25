@@ -169,6 +169,12 @@ Options:
       --seed                           Seed the torrent
       --bt-trackers <BT_TRACKERS>      Trackers for the torrent, e.g. --bt-trackers "udp://tracker.opentrackr.org:1337/announce
                                        ,udp://opentracker.io:6969/announce"
+      --bt-peer-connect-timeout <BT_PEER_CONNECT_TIMEOUT>
+          Peer connect timeout in seconds. [default: 10]
+      --bt-peer-read-write-timeout <BT_PEER_READ_WRITE_TIMEOUT>
+          Peer read/write timeout in seconds. [default: 10]
+      --bt-peer-keep-alive-interval <BT_PEER_KEEP_ALIVE_INTERVAL>
+          Peer keep-alive interval in seconds. [default: 120]
       --debug                          Debug output. Print all trackback for debugging
       --quiet                          Quiet mode. Don't show progress bar and task information. But still show the error information
   -o, --out <OUT>                      The path of output for the request e.g. -o "/path/to/file"
