@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.3 - 2024-12-26
+
+### Update
+
+- Update dependencies and rqbit api
+
+### Fixed
+
+- Fix the error initializing persistent DHT
+
 ## 0.6.2 - 2024-10-25
 
 ### Added
