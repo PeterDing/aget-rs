@@ -8,7 +8,7 @@ use tracing_subscriber::fmt::time::OffsetTime;
 use aget::{
     app::core::{bt::BtHandler, http::HttpHandler, m3u8::M3u8Handler},
     arguments::cmd_args::CmdArgs,
-    common::tasks::TaskType,
+    common::{errors::Error, tasks::TaskType},
     features::{args::Args, running::Runnable},
 };
 
@@ -57,6 +57,21 @@ fn main() {
 
         if let Err(err) = result {
             tracing::error!("Error: {:?}", err);
+
+            // if error is "error initializing persistent DHT", remove dht.json
+            if let Error::BitTorrentError(msg) = err {
+                if msg == "error initializing persistent DHT" {
+                    let output_dir = cmdargs.output();
+                    let dht_file = output_dir
+                        .join("..")
+                        .join(output_dir.file_name().unwrap().to_string_lossy().to_string() + ".bt.aget")
+                        .join("dht.json");
+                    if dht_file.exists() {
+                        std::fs::remove_file(dht_file).unwrap();
+                    }
+                }
+            }
+
             // Retry
             let retrywait = cmdargs.retry_wait();
             thread::sleep(Duration::from_secs(retrywait));
