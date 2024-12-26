@@ -30,12 +30,12 @@ impl BtShower {
         Ok(())
     }
 
-    pub fn print_files(&mut self, files: Vec<(&str, u64, bool)>) -> Result<()> {
-        for (filename, length, included) in files {
+    pub fn print_files(&mut self, files: &[(&str, u64, bool)]) -> Result<()> {
+        for (filename, length, included) in files.iter() {
             writeln!(
                 &mut self.stdout,
                 "{} {}: {} ({})",
-                if included {
+                if *included {
                     Green.bold().paint("✓")
                 } else {
                     Red.bold().paint("✘")

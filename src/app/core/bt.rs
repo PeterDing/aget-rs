@@ -176,17 +176,18 @@ impl StatsWatcher {
         }
 
         shower
-            .print_name(torrent_details.name.as_deref().or(Some("unknown")).unwrap())
+            .print_name(torrent_details.name.as_deref().unwrap_or("unknown"))
             .expect("failed to print name");
 
-        let files: Vec<_> = torrent_details
-            .files
+        let torrent_files: Vec<_> = torrent_details.files.unwrap_or_default();
+        let files: Vec<_> = torrent_files
             .iter()
             .map(|file| (file.name.as_str(), file.length, file.included))
             .collect();
-        shower.print_files(files).unwrap();
 
-        let mut completed_idx: Vec<bool> = vec![false; torrent_details.files.len()];
+        shower.print_files(&files[..]).unwrap();
+
+        let mut completed_idx: Vec<bool> = vec![false; files.len()];
 
         loop {
             let stats = api.api_stats_v1(tid).expect("failed to get stats");
@@ -231,11 +232,11 @@ impl StatsWatcher {
                     )
                     .unwrap();
 
-                torrent_details.files.iter().enumerate().for_each(|(i, file)| {
-                    if file.included && !completed_idx[i] {
+                files.iter().enumerate().for_each(|(i, (filename, length, included))| {
+                    if *included && !completed_idx[i] {
                         let completed_size = stats.file_progress[i];
-                        if completed_size == file.length {
-                            shower.print_completed_file(file.name.as_str()).unwrap();
+                        if completed_size == *length {
+                            shower.print_completed_file(filename).unwrap();
                             completed_idx[i] = true;
                         }
                     }
