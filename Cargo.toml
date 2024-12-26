@@ -3,16 +3,11 @@ name = "aget-rs"
 version = "0.6.2"
 authors = ["PeterDing <dfhayst@gmail.com>"]
 homepage = "https://github.com/PeterDing/aget-rs"
-description="Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
+description = "Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
 license = "MIT/Apache-2.0"
 readme = "README.md"
 categories = ["command-line-utilities", "asynchronous", "download"]
-keywords = [
-    "download",
-    "network",
-    "asynchronous",
-    "tool",
-]
+keywords = ["download", "network", "asynchronous", "tool"]
 edition = "2021"
 
 [lib]
@@ -33,10 +28,16 @@ actix-rt = "2.10"
 # for http
 http = "1.1"
 url = "2.5"
-reqwest = { version = "0.12", features = ["rustls-tls", "stream", "gzip", "brotli", "deflate"], default-features = false }
+reqwest = { version = "0.12", features = [
+  "rustls-tls",
+  "stream",
+  "gzip",
+  "brotli",
+  "deflate",
+], default-features = false }
 
 # for errors
-thiserror = "1.0"
+thiserror = "2.0"
 
 # for crypto
 aes = "0.8"
@@ -56,11 +57,18 @@ dirs = "5.0"
 m3u8-rs = "6"
 
 # for torrent
-librqbit = { git = "https://github.com/ikatson/rqbit.git", branch = "main", features = ["rust-tls"], default-features = false }
+librqbit = { git = "https://github.com/ikatson/rqbit.git", rev = "b9f949c", features = [
+  "rust-tls",
+], default-features = false }
 
 # for tracing
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["default", "time", "local-time", "registry"] }
+tracing-subscriber = { version = "0.3", features = [
+  "default",
+  "time",
+  "local-time",
+  "registry",
+] }
 tracing-appender = "0.2"
 time = { version = "0.3", features = ["formatting", "macros"] }
 
