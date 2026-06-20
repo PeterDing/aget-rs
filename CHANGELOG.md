@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 - 2026-06-20
+
+### Update
+
+- Update dependencies and rqbit api
+
+### Added
+
+- Support curl options
+
 ## 0.6.3 - 2024-12-26
 
 ### Update

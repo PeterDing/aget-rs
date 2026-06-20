@@ -1,6 +1,6 @@
 [package]
 name = "aget-rs"
-version = "0.6.3"
+version = "0.7.0"
 authors = ["PeterDing <dfhayst@gmail.com>"]
 homepage = "https://github.com/PeterDing/aget-rs"
 description = "Aget-rs - Fast Asynchronous Downloader with Rust 🦀"
@@ -29,6 +29,7 @@ actix-rt = "2"
 http = "1"
 url = "2"
 reqwest = { version = "0.13", features = [
+  "default",
   "stream",
   "gzip",
   "brotli",
@@ -56,7 +57,7 @@ dirs = "6"
 m3u8-rs = "6"
 
 # for torrent
-librqbit = "8"
+librqbit = { version = "8", features = ["rust-tls"], default-features = false }
 
 # for tracing
 tracing = "0.1"
