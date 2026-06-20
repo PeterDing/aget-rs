@@ -23,25 +23,24 @@ path = "src/main.rs"
 [dependencies]
 # for async
 futures = "0.3"
-actix-rt = "2.10"
+actix-rt = "2"
 
 # for http
-http = "1.1"
-url = "2.5"
-reqwest = { version = "0.12", features = [
-  "rustls-tls",
+http = "1"
+url = "2"
+reqwest = { version = "0.13", features = [
   "stream",
   "gzip",
   "brotli",
   "deflate",
-], default-features = false }
+] }
 
 # for errors
 thiserror = "2.0"
 
 # for crypto
-aes = "0.8"
-cbc = { version = "0.1", features = ["alloc", "block-padding"] }
+aes = "0.9"
+cbc = { version = "0.2", features = ["alloc", "block-padding"] }
 
 # utilities
 term_size = "0.3"
@@ -49,17 +48,15 @@ ansi_term = "0.12"
 percent-encoding = "2"
 bytes = "1"
 clap = { version = "4", features = ["derive", "cargo"] }
-toml = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-dirs = "5.0"
+toml = "1"
+serde = { version = "1", features = ["derive"] }
+dirs = "6"
 
 # for m3u8
 m3u8-rs = "6"
 
 # for torrent
-librqbit = { git = "https://github.com/ikatson/rqbit.git", rev = "b9f949c", features = [
-  "rust-tls",
-], default-features = false }
+librqbit = "8"
 
 # for tracing
 tracing = "0.1"
@@ -73,7 +70,7 @@ tracing-appender = "0.2"
 time = { version = "0.3", features = ["formatting", "macros"] }
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.10"
 
 [profile.release]
 opt-level = 3
