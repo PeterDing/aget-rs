@@ -108,7 +108,7 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 
 - Set request method and data
 
-  Use `-X` or `--method` to set method for http, example, `GET`, `POST`.  
+  Use `-X` or `--request` to set method for http, example, `GET`, `POST`.  
    The default method is `GET`.  
    With a data, using `-d` or `--data`, example, `a=b`
 
