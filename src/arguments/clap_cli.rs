@@ -6,15 +6,24 @@ pub struct AgetCli {
     pub url: String,
 
     #[clap(
-        short,
+        short = 'X',
         long,
         default_value_t = String::from("GET"),
         help = "Request method, e.g. GET, POST"
     )]
-    pub method: String,
+    pub request: String,
 
     #[clap(short = 'H', long, help = r#"Request headers, e.g. -H "User-Agent: aget""#)]
     pub header: Option<Vec<String>>,
+
+    #[clap(short = 'A', long, help = r#"Request with custom user agent, e.g. -A "Mozilla/5.0"#)]
+    pub user_agent: Option<String>,
+
+    #[clap(short = 'b', long, help = r#"Request with cookie, e.g. -b "a=b"#)]
+    pub cookie: Option<String>,
+
+    #[clap(short = 'e', long, help = r#"Request with referer, e.g. -e "https://example.com"#)]
+    pub referer: Option<String>,
 
     #[clap(short, long, help = r#"Request with POST method with the data, e.g. -d "a=b""#)]
     pub data: Option<String>,

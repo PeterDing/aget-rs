@@ -72,10 +72,10 @@ impl Args for CmdArgs {
         if self.cli.data.is_some() {
             return Method::POST;
         }
-        match self.cli.method.to_uppercase().as_str() {
+        match self.cli.request.to_uppercase().as_str() {
             "GET" => Method::GET,
             "POST" => Method::POST,
-            _ => panic!("{:?}", Error::UnsupportedMethod(self.cli.method.to_string())),
+            _ => panic!("{:?}", Error::UnsupportedMethod(self.cli.request.to_string())),
         }
     }
 
@@ -97,6 +97,18 @@ impl Args for CmdArgs {
         } else {
             vec![]
         };
+
+        if let Some(ua) = &self.cli.user_agent {
+            headers.push(("user-agent", ua));
+        }
+
+        if let Some(cookie) = &self.cli.cookie {
+            headers.push(("cookie", cookie));
+        }
+
+        if let Some(referer) = &self.cli.referer {
+            headers.push(("referer", referer));
+        }
 
         if let Some(config_headers) = &self.config.headers {
             for (uk, uv) in config_headers.iter() {
@@ -199,7 +211,7 @@ impl Args for CmdArgs {
 
     /// Skip to verify the server's TLS certificate
     fn skip_verify_tls_cert(&self) -> bool {
-        return self.cli.insecure;
+        self.cli.insecure
     }
 
     /// The number of concurrency
@@ -241,9 +253,7 @@ impl Args for CmdArgs {
         match self.cli.tp.as_str() {
             "auto" => {
                 let url = self.url();
-                if url.scheme() == "magnet" {
-                    TaskType::BT
-                } else if url.path().to_lowercase().ends_with(".torrent") {
+                if url.scheme() == "magnet" || url.path().to_lowercase().ends_with(".torrent") {
                     TaskType::BT
                 } else if url.path().to_lowercase().ends_with(".m3u8") {
                     TaskType::M3U8
