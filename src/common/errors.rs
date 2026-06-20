@@ -4,7 +4,7 @@ use thiserror::Error as ThisError;
 
 use url::ParseError as UrlParseError;
 
-use aes::cipher::block_padding::UnpadError;
+use aes::cipher::block_padding::Error as PadError;
 
 pub type Result<T, E = Error> = result::Result<T, E>;
 
@@ -80,7 +80,7 @@ pub enum Error {
     #[error("No Location for redirection: {0}")]
     NoLocation(String),
     #[error("Fail to decrypt aes128 data: {0}")]
-    AES128DecryptFail(UnpadError),
+    AES128DecryptFail(PadError),
 }
 
 impl From<http::header::ToStrError> for Error {
@@ -95,8 +95,8 @@ impl From<http::Error> for Error {
     }
 }
 
-impl From<UnpadError> for Error {
-    fn from(err: UnpadError) -> Error {
+impl From<PadError> for Error {
+    fn from(err: PadError) -> Error {
         Error::AES128DecryptFail(err)
     }
 }
