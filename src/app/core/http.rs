@@ -54,7 +54,7 @@ impl<'a> std::fmt::Debug for HttpHandler<'a> {
 }
 
 impl<'a> HttpHandler<'a> {
-    pub fn new(args: &(impl Args + std::fmt::Debug)) -> Result<HttpHandler> {
+    pub fn new(args: &(impl Args + std::fmt::Debug)) -> Result<HttpHandler<'_>> {
         let headers = args.headers();
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();

@@ -96,7 +96,7 @@ impl BtHandler {
         });
         let response = session
             .add_torrent(
-                AddTorrent::from_cli_argument(&self.torrent_or_magnet.as_str())
+                AddTorrent::from_cli_argument(self.torrent_or_magnet.as_str())
                     .map_err(|err| Error::BitTorrentError(err.to_string()))?,
                 topts,
             )
@@ -127,9 +127,10 @@ impl BtHandler {
         if self.seed {
             tracing::debug!("BtHandler: start seeding");
             println!("\nSeeding...");
-        }
-        while self.seed {
-            actix_rt::time::sleep(Duration::from_secs(1)).await;
+
+            loop {
+                actix_rt::time::sleep(Duration::from_secs(1)).await;
+            }
         }
 
         // 5. Exit shower

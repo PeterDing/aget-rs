@@ -42,7 +42,7 @@ pub struct M3u8Handler<'a> {
 }
 
 impl<'a> M3u8Handler<'a> {
-    pub fn new(args: &impl Args) -> Result<M3u8Handler> {
+    pub fn new(args: &impl Args) -> Result<M3u8Handler<'_>> {
         let headers = args.headers();
         let timeout = args.timeout();
         let dns_timeout = args.dns_timeout();
