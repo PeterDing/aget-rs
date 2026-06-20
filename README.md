@@ -11,7 +11,7 @@ Especially, the concurrent amount can be any positive number as your wish.
 
 ## Installation
 
-You can download the last release from https://github.com/PeterDing/aget-rs/releases
+You can download the last release from <https://github.com/PeterDing/aget-rs/releases>
 
 ## Benchmark
 
@@ -31,9 +31,9 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                    Dload  Upload   Total   Spent    Left  Speed
   100 10.0M  100 10.0M    0     0   100k      0  0:01:42  0:01:42 --:--:--  103k
-  real	1m42.147s
-  user	0m0.021s
-  sys	0m0.035s
+  real 1m42.147s
+  user 0m0.021s
+  sys 0m0.035s
   ```
 
   **time cost: 102s**
@@ -45,9 +45,9 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
       File: abc
     Length: 10.0M (10485760)
   10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>]
-  real	0m10.016s
-  user	0m0.040s
-  sys	0m0.020s
+  real 0m10.016s
+  user 0m0.040s
+  sys 0m0.020s
   ```
 
   **time cost: 10s, 10 times faster than curl**
@@ -59,9 +59,9 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
       File: abc
     Length: 10.0M (10485760)
   10.0M/10.0M 100.00% NaNG/s eta: 0s        [==================================>]
-  real	0m2.016s
-  user	0m0.087s
-  sys	0m0.029s
+  real 0m2.016s
+  user 0m0.087s
+  sys 0m0.029s
   ```
 
   **time cost: 2s, 50 times faster than curl**
@@ -147,39 +147,67 @@ Following is the results of using `curl` and `aget-rs`. (For more details, you c
 ## Options
 
 ```
+Aget-rs - Fast Asynchronous Downloader with Rust 🦀
+
 Usage: ag [OPTIONS] <URL>
 
 Arguments:
   <URL>
 
 Options:
-  -m, --method <METHOD>                Request method, e.g. GET, POST [default: GET]
-  -H, --header <HEADER>                Request headers, e.g. -H "User-Agent: aget"
-  -d, --data <DATA>                    Request with POST method with the data, e.g. -d "a=b"
-      --insecure                       Skip to verify the server's TLS certificate
-  -s, --concurrency <CONCURRENCY>      The number of concurrency request [default: 10]
-  -k, --chunk-size <CHUNK_SIZE>        The number ofinterval length of each concurrent request [default: '50m']
-  -t, --timeout <TIMEOUT>              Timeout(seconds) of request [default: 60]
-      --dns-timeout <DNS_TIMEOUT>      DNS Timeout(seconds) of request [default: 10]
-      --retries <RETRIES>              The maximum times of retring [default: 5]
-      --retry-wait <RETRY_WAIT>        The seconds between retries [default: 0]
-      --proxy <PROXY>                  [protocol://]host[:port] Use this proxy
-      --type <TYPE>                    Task type, auto/http/m3u8/bt [default: auto]
-      --bt-file-regex <BT_FILE_REGEX>  A regex to only download files matching it in the torrent
-      --seed                           Seed the torrent
-      --bt-trackers <BT_TRACKERS>      Trackers for the torrent, e.g. --bt-trackers "udp://tracker.opentrackr.org:1337/announce
-                                       ,udp://opentracker.io:6969/announce"
+  -X, --request <REQUEST>
+          Request method, e.g. GET, POST [default: GET]
+  -H, --header <HEADER>
+          Request headers, e.g. -H "User-Agent: aget"
+  -A, --user-agent <USER_AGENT>
+          Request with custom user agent, e.g. -A "Mozilla/5.0
+  -b, --cookie <COOKIE>
+          Request with cookie, e.g. -b "a=b
+  -e, --referer <REFERER>
+          Request with referer, e.g. -e "https://example.com
+  -d, --data <DATA>
+          Request with POST method with the data, e.g. -d "a=b"
+      --insecure
+          Skip to verify the server's TLS certificate
+  -s, --concurrency <CONCURRENCY>
+          The number of concurrency request [default: 10]
+  -k, --chunk-size <CHUNK_SIZE>
+          The number ofinterval length of each concurrent request [default: '50m']
+  -t, --timeout <TIMEOUT>
+          Timeout(seconds) of request [default: 60]
+      --dns-timeout <DNS_TIMEOUT>
+          DNS Timeout(seconds) of request [default: 10]
+      --retries <RETRIES>
+          The maximum times of retring [default: 5]
+      --retry-wait <RETRY_WAIT>
+          The seconds between retries [default: 0]
+      --proxy <PROXY>
+          [protocol://]host[:port] Use this proxy
+      --type <TYPE>
+          Task type, auto/http/m3u8/bt [default: auto]
+      --bt-file-regex <BT_FILE_REGEX>
+          A regex to only download files matching it in the torrent
+      --seed
+          Seed the torrent
+      --bt-trackers <BT_TRACKERS>
+          Trackers for the torrent, e.g. --bt-trackers "udp://tracker.opentrackr.org:1337/announce
+          ,udp://opentracker.io:6969/announce"
       --bt-peer-connect-timeout <BT_PEER_CONNECT_TIMEOUT>
           Peer connect timeout in seconds. [default: 10]
       --bt-peer-read-write-timeout <BT_PEER_READ_WRITE_TIMEOUT>
           Peer read/write timeout in seconds. [default: 10]
       --bt-peer-keep-alive-interval <BT_PEER_KEEP_ALIVE_INTERVAL>
           Peer keep-alive interval in seconds. [default: 120]
-      --debug                          Debug output. Print all trackback for debugging
-      --quiet                          Quiet mode. Don't show progress bar and task information. But still show the error information
-  -o, --out <OUT>                      The path of output for the request e.g. -o "/path/to/file"
-  -h, --help                           Print help
-  -V, --version                        Print version
+      --debug
+          Debug output. Print all trackback for debugging
+      --quiet
+          Quiet mode. Don't show progress bar and task information. But still show the error information
+  -o, --out <OUT>
+          The path of output for the request e.g. -o "/path/to/file"
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 ## Configuration
